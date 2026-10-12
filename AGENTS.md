@@ -13,3 +13,12 @@
 - Do not credit an agent that did not participate in the commit.
 - Do not rewrite already-pushed history solely to add attribution unless a maintainer explicitly requests it.
 - Keep the public agent list and attribution policy in `CONTRIBUTORS.md` current when a new coding-agent family materially contributes.
+
+## Collaboration
+
+- Follow `CONTRIBUTING.md`, `docs/collaboration.md` and `.github/CODEOWNERS`.
+- Start from current `main` on a short-lived task branch; communicate scope and overlap before work.
+- Core changes and unclassified paths require the other collaborator's approval. New modules are reviewed on first integration and classified in the same PR.
+- Apply only the minimum relevant local validation; do not trigger remote CI as verification.
+- Push, merge and publish only within the user's authorized scope. Merge through PRs using Squash, preserving material contributor attribution in the final commit.
+- Delete completed task branches promptly; preserve needed work before deleting abandoned branches. Do not delete another collaborator's local branches or worktrees.

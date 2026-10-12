@@ -1,0 +1,33 @@
+name: 开发任务
+description: 开工前记录目标、修改范围与负责人，便于协调重叠工作
+title: "[Task] "
+labels:
+  - task
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标与完成条件
+      description: 写明要解决的问题和什么结果算完成。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 涉及目录、接口与依赖
+      description: 列出预计修改的目录、公共接口，以及可能重叠的 Issue 或 PR；没有依赖则写“无”。
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: 主要负责人
+      description: 写 GitHub 用户名，并在 Issue 右侧设置 Assignee。
+      placeholder: ZZZdragondYNGPHX 或 MIYIZIII
+    validations:
+      required: true
+  - type: textarea
+    id: review
+    attributes:
+      label: 审查范围（可选）
+      description: 是否涉及输入投递、用户数据、跨模块接口、安装发布或协作规则？不确定则写“首次接入互审”。

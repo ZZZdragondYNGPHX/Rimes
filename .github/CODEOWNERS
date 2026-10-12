@@ -1,0 +1,46 @@
+# 默认：核心代码和未分类路径由另一位协作者审查。
+# 最后一个匹配规则生效；无 owner 的规则允许自查合并。
+# 分类依据和新增模块流程见 docs/collaboration.md。
+* @ZZZdragondYNGPHX @MIYIZIII
+
+# 普通文档、静态品牌资源和纯样式。
+*.md
+/Logo/*.svg
+/Logo/*.png
+/.github/readme/labels/*.svg
+/DesignSystem/src/*.css
+
+# 普通任务表单和 PR 描述模板。
+/.github/ISSUE_TEMPLATE/
+/.github/pull_request_template.md
+
+# 核心目录中的文档也需要互审。
+/platforms/linux/ime/src/ @ZZZdragondYNGPHX @MIYIZIII
+/platforms/linux/buffer/core/ @ZZZdragondYNGPHX @MIYIZIII
+/platforms/linux/buffer/ai/ @ZZZdragondYNGPHX @MIYIZIII
+/platforms/linux/capsule/core/ @ZZZdragondYNGPHX @MIYIZIII
+/Shared/Engine/ @ZZZdragondYNGPHX @MIYIZIII
+/Shared/Sources/ @ZZZdragondYNGPHX @MIYIZIII
+/.github/workflows/ @ZZZdragondYNGPHX @MIYIZIII
+/.github/rulesets/ @ZZZdragondYNGPHX @MIYIZIII
+/.codex/ @ZZZdragondYNGPHX @MIYIZIII
+/LICENSES/ @ZZZdragondYNGPHX @MIYIZIII
+/docs/releases/ @ZZZdragondYNGPHX @MIYIZIII
+
+# 治理、架构、协议和发布文档；按文件名匹配任何层级。
+AGENTS.md @ZZZdragondYNGPHX @MIYIZIII
+CONTRIBUTING.md @ZZZdragondYNGPHX @MIYIZIII
+CONTRIBUTORS.md @ZZZdragondYNGPHX @MIYIZIII
+ARCHITECTURE.md @ZZZdragondYNGPHX @MIYIZIII
+SYSTEM-ARCHITECTURE.md @ZZZdragondYNGPHX @MIYIZIII
+PLATFORM-ROADMAP.md @ZZZdragondYNGPHX @MIYIZIII
+MAINTENANCE.md @ZZZdragondYNGPHX @MIYIZIII
+RELEASE.md @ZZZdragondYNGPHX @MIYIZIII
+SECURITY.md @ZZZdragondYNGPHX @MIYIZIII
+SPEC.md @ZZZdragondYNGPHX @MIYIZIII
+AI.md @ZZZdragondYNGPHX @MIYIZIII
+LICENSE* @ZZZdragondYNGPHX @MIYIZIII
+COPYING* @ZZZdragondYNGPHX @MIYIZIII
+NOTICE* @ZZZdragondYNGPHX @MIYIZIII
+/docs/collaboration.md @ZZZdragondYNGPHX @MIYIZIII
+/.github/CODEOWNERS @ZZZdragondYNGPHX @MIYIZIII
