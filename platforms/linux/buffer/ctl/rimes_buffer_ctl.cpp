@@ -95,7 +95,7 @@ bool ReadSnapshot(int fd, std::string* json, int timeout_ms) {
 
 void Usage() {
     std::cerr << "Usage: rimes-buffer-ctl [--socket PATH] "
-                 "hello|status|toggle|show|close|send-next|send-all|remove-last\n";
+                 "hello|status|toggle|show|close|send-next|send-all|remove-last|ai|translate|default|generate|cancel\n";
 }
 
 }  // namespace
@@ -132,7 +132,13 @@ int main(int argc, char** argv) {
         std::cerr << "rimes-buffer-ctl: cannot connect to " << socket_path << '\n';
         return 1;
     }
-    const std::string command = std::string("{\"v\":1,\"op\":\"") + wire_op + "\"}";
+    std::string command;
+    if(op=="ai" || op=="translate" || op=="default") {
+        const std::string mode=op=="ai" ? "generate" : op;
+        command="{\"v\":1,\"op\":\"ai_mode\",\"mode\":"+rimes::buffer::JsonEscape(mode)+"}";
+    } else if(op=="generate" || op=="cancel") {
+        command="{\"v\":1,\"op\":"+rimes::buffer::JsonEscape(op=="generate" ? "ai_generate" : "ai_cancel")+"}";
+    } else command="{\"v\":1,\"op\":"+rimes::buffer::JsonEscape(wire_op)+"}";
     // AcceptClient publishes immediately. Drain that snapshot so mutating
     // ops wait for HandleCommand's later Publish on the Fcitx thread.
     std::string connect_snapshot;

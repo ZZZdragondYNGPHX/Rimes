@@ -2,7 +2,7 @@
 """Check a Rime scheme ZIP against the RIMES import contract.
 
 The authority for this contract is the iOS importer,
-`platforms/ios/App/RimeSchemeImportService.swift`.  This module restates its
+the historical upstream import contract.  This module restates its
 `inspect` rules so packages can be checked on any host before they are
 published.  When the two disagree the Swift importer is right and this file
 must be corrected.

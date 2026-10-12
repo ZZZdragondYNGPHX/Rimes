@@ -1,5 +1,0 @@
-/* Display names keyed by the current bundle and input-mode identities. */
-"CFBundleDisplayName" = "RIMES";
-"CFBundleName" = "RIMES";
-"com.scholay.inputmethod.isaac" = "RIMES";
-"com.scholay.inputmethod.isaac.Hans" = "RIMES";

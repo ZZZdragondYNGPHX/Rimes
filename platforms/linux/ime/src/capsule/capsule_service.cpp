@@ -77,6 +77,7 @@ std::string FindUiBinary() {
         }
     }
     const char* candidates[] = {
+        RIMES_CAPSULE_UI_PATH,
         "/usr/libexec/rimes/rimes-capsule",
         "/usr/lib/rimes/rimes-capsule",
         "/usr/bin/rimes-capsule",
@@ -233,7 +234,7 @@ void CapsuleService::Show(InputContext* ic) {
     if (ic == nullptr) {
         return;
     }
-    const bool password = ic->capabilityFlags().test(CapabilityFlag::Password);
+    const bool password = ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive);
     OnPasswordField(ic, password);
     if (password || model_.password_field()) {
         return;
@@ -260,7 +261,7 @@ bool CapsuleService::DeliverNote(const rimes::capsule::Card& card) {
     if (ic == nullptr || card.payload.empty() || card.kind != rimes::capsule::Kind::Note) {
         return false;
     }
-    if (ic->capabilityFlags().test(CapabilityFlag::Password) || model_.password_field()) {
+    if (ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) || model_.password_field()) {
         return false;
     }
     if (!model_.arms(TokenFor(ic))) {
@@ -310,7 +311,7 @@ bool CapsuleService::HandleEarlyKey(KeyEvent& event) {
     if (ic == nullptr) {
         return false;
     }
-    OnPasswordField(ic, ic->capabilityFlags().test(CapabilityFlag::Password));
+    OnPasswordField(ic, ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive));
     if (IsToggleHotkey(event)) {
         Toggle(ic);
         event.filterAndAccept();
@@ -393,7 +394,7 @@ void CapsuleService::OnActivate(InputContext* ic) {
     if (ic == nullptr) {
         return;
     }
-    OnPasswordField(ic, ic->capabilityFlags().test(CapabilityFlag::Password));
+    OnPasswordField(ic, ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive));
     const auto token = TokenFor(ic);
     if (!model_.visible()) {
         return;
@@ -419,7 +420,7 @@ void CapsuleService::OnDeactivate(InputContext* ic, bool switching_im) {
     // deactivate). Mark the field before Close() so the snapshot stays
     // honest even though later keys never reach HandleEarlyKey.
     if (ic != nullptr) {
-        OnPasswordField(ic, ic->capabilityFlags().test(CapabilityFlag::Password));
+        OnPasswordField(ic, ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive));
     }
     if (switching_im) {
         Close();

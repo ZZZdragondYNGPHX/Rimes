@@ -1,3 +1,8 @@
+# Linux 主目标
+
+CachyOS / KDE Plasma 的原生输入法安装见 [根目录 README](../../README.md) 与 [ime/](ime/README.md)。
+下文是保留的可选数据包工具，主安装无需使用此路径。
+
 # RIMES Linux
 
 Linux 现在有两层，互相独立：

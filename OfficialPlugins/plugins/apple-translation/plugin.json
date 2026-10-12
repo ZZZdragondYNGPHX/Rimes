@@ -1,0 +1,51 @@
+{
+  "id": "builtin.apple-translation",
+  "nameZH": "实时翻译",
+  "nameEN": "Translation",
+  "summaryZH": "实时翻译官方插件；用户数据由 RIMES 宿主管理。",
+  "summaryEN": "Translation official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "2.2.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.apple-translation",
+      "distribution": "bundled"
+    },
+    "ios": {
+      "legacyID": "apple.translation",
+      "distribution": "bundled"
+    },
+    "android": {
+      "legacyID": "translate",
+      "distribution": "bundled"
+    },
+    "windows": {
+      "legacyID": "translate",
+      "distribution": "bundled"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "translation.generate"
+  ],
+  "contribution": {
+    "type": "translation.v1",
+    "options": {
+      "source": "auto",
+      "target": "en"
+    },
+    "instructions": {
+      "default": "Translate the supplied text into {targetLanguage}. Return only the translation."
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

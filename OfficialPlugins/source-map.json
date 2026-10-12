@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/scholay/rimes",
+    "commit": "5daa62b87c008028c42581713aaa85131683697d"
+  },
+  "files": [
+    {
+      "source": "native/shared/AIPoem.swift",
+      "destination": "Shared/Sources/RimesCore/AIPoem.swift",
+      "plugins": [
+        "builtin.poem"
+      ]
+    },
+    {
+      "source": "native/shared/Chord.swift",
+      "destination": "Shared/Sources/RimesCore/Chord.swift",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/shared/ChordEncoding.swift",
+      "destination": "Shared/Sources/RimesCore/ChordEncoding.swift",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/shared/TextArt.swift",
+      "destination": "Shared/Sources/RimesCore/TextArt.swift",
+      "plugins": [
+        "builtin.art"
+      ]
+    },
+    {
+      "source": "native/android/BufferPluginExecutor.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/BufferPluginExecutor.java",
+      "plugins": [
+        "builtin.apple-translation",
+        "builtin.ask",
+        "builtin.polisher",
+        "builtin.poem",
+        "builtin.art"
+      ]
+    },
+    {
+      "source": "native/android/BufferPluginPanel.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/BufferPluginPanel.java",
+      "plugins": [
+        "builtin.apple-translation",
+        "builtin.ask",
+        "builtin.polisher",
+        "builtin.poem",
+        "builtin.art"
+      ]
+    },
+    {
+      "source": "native/android/ChordPreview.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/ChordPreview.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/android/ChordSurface.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/ChordSurface.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/android/OfflineDictionary.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/OfflineDictionary.java",
+      "plugins": [
+        "builtin.apple-translation",
+        "builtin.ask",
+        "builtin.polisher",
+        "builtin.poem",
+        "builtin.art"
+      ]
+    },
+    {
+      "source": "native/android/OpenAiChatCodec.java",
+      "destination": "platforms/android/app/src/main/java/org/scholay/rimes/android/OpenAiChatCodec.java",
+      "plugins": [
+        "builtin.apple-translation",
+        "builtin.ask",
+        "builtin.polisher",
+        "builtin.poem",
+        "builtin.art"
+      ]
+    },
+    {
+      "source": "native/android-core/ChordGesture.java",
+      "destination": "platforms/android/core/src/main/java/org/scholay/rimes/core/ChordGesture.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/android-core/ChordProfile.java",
+      "destination": "platforms/android/core/src/main/java/org/scholay/rimes/core/ChordProfile.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/android-core/ChordData.java",
+      "destination": "platforms/android/core/src/main/java/org/scholay/rimes/core/ChordData.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/android-core/ChordLayout.java",
+      "destination": "platforms/android/core/src/main/java/org/scholay/rimes/core/ChordLayout.java",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/windows/official_features.hpp",
+      "destination": "platforms/windows/native/src/workbench/official_features.hpp",
+      "plugins": [
+        "builtin.openai-compatible",
+        "builtin.apple-translation",
+        "builtin.fly-chord-learning"
+      ]
+    },
+    {
+      "source": "native/windows/my_combo.schema.yaml",
+      "destination": "platforms/windows/native/resources/my_combo.schema.yaml",
+      "plugins": [
+        "builtin.fly-chord-learning"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,790 @@
+# encoding: utf-8
+
+# 飞耀只改变物理键到拼音的映射；候选、单字、英文混输与翻页能力
+# 直接继承完整的雾凇拼音链，避免维护一套会逐渐退化的精简翻译器。
+__include: rime_ice.schema:/
+
+schema:
+  schema_id: my_combo
+  name: 飞耀输入
+  version: '1.5'
+  author:
+    - RIMES Contributors
+  description: |
+    “并击”扩展使用的飞耀键位方案
+    基于 Rime 输入法引擎
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中, 英 ]
+
+engine:
+  processors:
+    - lua_processor@*select_character
+    - ascii_composer
+    - recognizer
+    - chord_composer  # 核心：并击处理器
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - affix_segmentor@radical_lookup
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - punct_translator
+    - script_translator
+    - lua_translator@*date_translator
+    - lua_translator@*lunar
+    - table_translator@custom_phrase
+    - table_translator@melt_eng
+    - table_translator@cn_en
+    - table_translator@radical_lookup
+    - lua_translator@*unicode
+    - lua_translator@*number_translator
+    - lua_translator@*calc_translator
+    - lua_translator@*force_gc
+    # 原始预编辑串不是候选词：未知英文/原码仍由 Return 的
+    # commit_raw_input 提交，真正的英文候选继续由 melt_eng 提供。
+  filters:
+    - lua_filter@*corrector
+    - reverse_lookup_filter@radical_reverse_lookup
+    - lua_filter@*autocap_filter
+    - lua_filter@*pin_cand_filter
+    - lua_filter@*long_word_filter
+    - lua_filter@*reduce_english_filter
+    - simplifier@emoji
+    - simplifier@traditionalize
+    - lua_filter@*search@radical_pinyin
+    - uniquifier
+
+ascii_composer:
+  good_old_caps_lock: true
+  switch_key:
+    Caps_Lock: clear
+    Shift_L: commit_code
+    Shift_R: commit_code
+    Control_L: noop
+    Control_R: noop
+
+# 根据prd.md映射表配置的chord_composer组件
+chord_composer:
+  # 定义用于并击的按键字母表
+  alphabet: 'qwertyuiopasdfghjklzxcvbnm,.'
+
+  # 并击转换规则 - 将并击序列转换为拼音
+  algebra:
+    # ===== 单个字母直接上屏（无隔音符号） =====
+    - 'xform/^([qwertyuiopasdfghjklzxcvbnm,.])$/$1/'
+
+    # ===== 按键顺序规范化（针对完整并击） =====
+    # 第一步：将所有按键重新排序为标准顺序（左半区在前，右半区在后）
+    # 这样无论用户按键顺序如何，都能正确匹配
+
+    # 重排序规则：提取左半区和右半区的键，然后重新组合
+    # 左半区：qwertasdfgzxcvb
+    # 右半区：yuiophjklnm,.
+
+    # 处理两键组合
+    - 'xform/^([qwertasdfgzxcvb])([yuiophjklnm,.])$/$1$2/'
+    - 'xform/^([yuiophjklnm,.])([qwertasdfgzxcvb])$/$2$1/'
+
+    # 处理三键组合
+    - 'xform/^([qwertasdfgzxcvb])([qwertasdfgzxcvb])([yuiophjklnm,.])$/$1$2$3/'
+    - 'xform/^([qwertasdfgzxcvb])([yuiophjklnm,.])([qwertasdfgzxcvb])$/$1$3$2/'
+    - 'xform/^([qwertasdfgzxcvb])([yuiophjklnm,.])([yuiophjklnm,.])$/$1$2$3/'
+    - 'xform/^([yuiophjklnm,.])([qwertasdfgzxcvb])([qwertasdfgzxcvb])$/$2$3$1/'
+    - 'xform/^([yuiophjklnm,.])([qwertasdfgzxcvb])([yuiophjklnm,.])$/$2$1$3/'
+    - 'xform/^([yuiophjklnm,.])([yuiophjklnm,.])([qwertasdfgzxcvb])$/$3$1$2/'
+
+    # ===== 通用按键重排序 =====
+    # 核心思路：将任意按键组合按键盘顺序重排
+    # 键盘顺序：qwertasdfgzxcvbyuiophjklnm,.
+
+    # 使用递归替换实现冒泡排序算法
+    # 每次将较后面的字符向前移动，直到所有字符按键盘顺序排列
+
+    # 第1轮：处理相邻字符交换（冒泡排序的一轮）
+    - 'xform/([w])([q])/\2\1/g'      # wq -> qw
+    - 'xform/([e])([qw])/\2\1/g'     # eq/ew -> qe/we
+    - 'xform/([r])([qwe])/\2\1/g'    # rq/rw/re -> qr/wr/er
+    - 'xform/([t])([qwer])/\2\1/g'   # 以此类推...
+    - 'xform/([a])([qwert])/\2\1/g'
+    - 'xform/([s])([qwerta])/\2\1/g'
+    - 'xform/([d])([qwertas])/\2\1/g'
+    - 'xform/([f])([qwertasd])/\2\1/g'
+    - 'xform/([g])([qwertasdf])/\2\1/g'
+    - 'xform/([z])([qwertasdfg])/\2\1/g'
+    - 'xform/([x])([qwertasdfgz])/\2\1/g'
+    - 'xform/([c])([qwertasdfgzx])/\2\1/g'
+    - 'xform/([v])([qwertasdfgzxc])/\2\1/g'
+    - 'xform/([b])([qwertasdfgzxcv])/\2\1/g'
+    - 'xform/([y])([qwertasdfgzxcvb])/\2\1/g'
+    - 'xform/([u])([qwertasdfgzxcvby])/\2\1/g'
+    - 'xform/([i])([qwertasdfgzxcvbyu])/\2\1/g'
+    - 'xform/([o])([qwertasdfgzxcvbyui])/\2\1/g'
+    - 'xform/([p])([qwertasdfgzxcvbyuio])/\2\1/g'
+    - 'xform/([h])([qwertasdfgzxcvbyuiop])/\2\1/g'
+    - 'xform/([j])([qwertasdfgzxcvbyuioph])/\2\1/g'
+    - 'xform/([k])([qwertasdfgzxcvbyuiophj])/\2\1/g'
+    - 'xform/([l])([qwertasdfgzxcvbyuiophjk])/\2\1/g'
+    - 'xform/([n])([qwertasdfgzxcvbyuiophjkl])/\2\1/g'
+    - 'xform/([m])([qwertasdfgzxcvbyuiophjkln])/\2\1/g'
+    - 'xform/([,])([qwertasdfgzxcvbyuiophjklnm])/\2\1/g'
+    - 'xform/([.])([qwertasdfgzxcvbyuiophjklnm,])/\2\1/g'
+
+    # 第2轮：重复一遍确保完全排序（处理长组合）
+    - 'xform/([w])([q])/\2\1/g'
+    - 'xform/([e])([qw])/\2\1/g'
+    - 'xform/([r])([qwe])/\2\1/g'
+    - 'xform/([t])([qwer])/\2\1/g'
+    - 'xform/([a])([qwert])/\2\1/g'
+    - 'xform/([s])([qwerta])/\2\1/g'
+    - 'xform/([d])([qwertas])/\2\1/g'
+    - 'xform/([f])([qwertasd])/\2\1/g'
+    - 'xform/([g])([qwertasdf])/\2\1/g'
+    - 'xform/([z])([qwertasdfg])/\2\1/g'
+    - 'xform/([x])([qwertasdfgz])/\2\1/g'
+    - 'xform/([c])([qwertasdfgzx])/\2\1/g'
+    - 'xform/([v])([qwertasdfgzxc])/\2\1/g'
+    - 'xform/([b])([qwertasdfgzxcv])/\2\1/g'
+    - 'xform/([y])([qwertasdfgzxcvb])/\2\1/g'
+    - 'xform/([u])([qwertasdfgzxcvby])/\2\1/g'
+    - 'xform/([i])([qwertasdfgzxcvbyu])/\2\1/g'
+    - 'xform/([o])([qwertasdfgzxcvbyui])/\2\1/g'
+    - 'xform/([p])([qwertasdfgzxcvbyuio])/\2\1/g'
+    - 'xform/([h])([qwertasdfgzxcvbyuiop])/\2\1/g'
+    - 'xform/([j])([qwertasdfgzxcvbyuioph])/\2\1/g'
+    - 'xform/([k])([qwertasdfgzxcvbyuiophj])/\2\1/g'
+    - 'xform/([l])([qwertasdfgzxcvbyuiophjk])/\2\1/g'
+    - 'xform/([n])([qwertasdfgzxcvbyuiophjkl])/\2\1/g'
+    - 'xform/([m])([qwertasdfgzxcvbyuiophjkln])/\2\1/g'
+    - 'xform/([,])([qwertasdfgzxcvbyuiophjklnm])/\2\1/g'
+    - 'xform/([.])([qwertasdfgzxcvbyuiophjklnm,])/\2\1/g'
+
+    # 第3轮：最后一遍确保完全排序
+    - 'xform/([w])([q])/\2\1/g'
+    - 'xform/([e])([qw])/\2\1/g'
+    - 'xform/([r])([qwe])/\2\1/g'
+    - 'xform/([t])([qwer])/\2\1/g'
+    - 'xform/([a])([qwert])/\2\1/g'
+    - 'xform/([s])([qwerta])/\2\1/g'
+    - 'xform/([d])([qwertas])/\2\1/g'
+    - 'xform/([f])([qwertasd])/\2\1/g'
+    - 'xform/([g])([qwertasdf])/\2\1/g'
+    - 'xform/([z])([qwertasdfg])/\2\1/g'
+    - 'xform/([x])([qwertasdfgz])/\2\1/g'
+    - 'xform/([c])([qwertasdfgzx])/\2\1/g'
+    - 'xform/([v])([qwertasdfgzxc])/\2\1/g'
+    - 'xform/([b])([qwertasdfgzxcv])/\2\1/g'
+    - 'xform/([y])([qwertasdfgzxcvb])/\2\1/g'
+    - 'xform/([u])([qwertasdfgzxcvby])/\2\1/g'
+    - 'xform/([i])([qwertasdfgzxcvbyu])/\2\1/g'
+    - 'xform/([o])([qwertasdfgzxcvbyui])/\2\1/g'
+    - 'xform/([p])([qwertasdfgzxcvbyuio])/\2\1/g'
+    - 'xform/([h])([qwertasdfgzxcvbyuiop])/\2\1/g'
+    - 'xform/([j])([qwertasdfgzxcvbyuioph])/\2\1/g'
+    - 'xform/([k])([qwertasdfgzxcvbyuiophj])/\2\1/g'
+    - 'xform/([l])([qwertasdfgzxcvbyuiophjk])/\2\1/g'
+    - 'xform/([n])([qwertasdfgzxcvbyuiophjkl])/\2\1/g'
+    - 'xform/([m])([qwertasdfgzxcvbyuiophjkln])/\2\1/g'
+    - 'xform/([,])([qwertasdfgzxcvbyuiophjklnm])/\2\1/g'
+    - 'xform/([.])([qwertasdfgzxcvbyuiophjklnm,])/\2\1/g'
+
+    # ===== 完整音节映射优先（避免被基础规则覆盖） =====
+
+
+
+
+    # 一、单键声母 + 单键韵母 / 组合韵母
+    # q 声母 + 单键韵母
+    - 'xform/^qy$/qing/'     # qing - 清、请、情
+    - 'xform/^qn$/qin/'      # qin - 琴、亲、勤
+    - 'xform/^qm$/qian/'     # qian - 钱、前、千
+    - 'xform/^qu$/qu/'       # qu - 区、去、曲
+    - 'xform/^qi$/qi/'       # qi - 期、起、期
+    - 'xform/^qp$/qun/'      # qun - 群、群、群
+    # q声母 + 组合韵母
+    - 'xform/^qjl$/qiu/'      # qiu - 求、球、秋
+    - 'xform/^qui$/quan/'     # quan - 全、权、圈
+    - 'xform/^qm\.$/que/'     # que - 却、确、缺
+    - 'xform/^qil$/qie/'      # qie - 切、且、茄
+    - 'xform/^qlm$/qiao/'     # qiao - 桥、巧、敲
+    - 'xform/^qk\.$/qia/'     # qia - 恰、恰、恰
+    - 'xform/^qkm$/qiong/'   # qiong - 穷、穷、穷
+    - 'xform/^quo$/qiang/'   # qiang - 强、墙、抢
+
+    # w声母 + 单键韵母
+    - 'xform/^wo$/wo/'      # wo - 我
+    - 'xform/^wj$/wan/'      # wan - 万、完、晚
+    - 'xform/^wl$/wai/'      # wai - 外、歪
+    - 'xform/^wh$/wang/'     # wang - 王、望、忘
+    - 'xform/^wu$/wu/'      # wu - 无、五、物
+    # w声母 + 组合韵母
+    - 'xform/^wio$/w*en/'     # wen - 文、问、温 (临时标记防止二次映射)
+    - 'xform/^wm,$/weng/'     # weng - 翁、瓮
+    - 'xform/^woj$/w*ei/'     # wei - 为、位、味 (临时标记防止二次映射)
+    - 'xform/^wjk$/wa/'       # wa - 哇、哇、哇
+
+    # r声母 + 单键韵母
+    - 'xform/^ro$/ruo/'     # ruo - 若、弱
+    - 'xform/^rj$/ran/'      # ran - 然、燃
+    - 'xform/^rk$/rao/'      # rao - 饶、扰
+    - 'xform/^rh$/rang/'     # rang - 让、嚷
+    - 'xform/^ru$/ru/'       # ru - 如
+    - 'xform/^rp$/run/'      # run - 润
+    - 'xform/^ri$/ri/'       # ri - 日
+    # r声母 + 组合韵母
+    - 'xform/^rij$/re/'       # re - 热
+    - 'xform/^rui$/ruan/'     # ruan - 软、阮
+    - 'xform/^rkm$/rong/'     # rong - 容、融、荣
+    - 'xform/^rio$/ren/'      # ren - 人、任、认
+    - 'xform/^rm,$/reng/'     # reng - 仍、扔
+    - 'xform/^r,\.$/rui/'     # rui - 瑞、锐、睿
+    - 'xform/^rkl$/rou/'      # rou - 肉、柔、揉
+
+    # t声母 + 单键韵母
+    - 'xform/^ty$/ting/'     # ting - 听、停、庭
+    - 'xform/^to$/tuo/'      # tuo - 拖、脱、托
+    - 'xform/^tj$/tan/'      # tan - 谈、弹、坦
+    - 'xform/^tk$/tao/'      # tao - 桃、逃、淘
+    - 'xform/^tl$/tai/'      # tai - 太、台、
+    - 'xform/^tm$/tian/'     # tian - 天、田、甜
+    - 'xform/^th$/tang/'     # tang - 糖、汤、堂
+    - 'xform/^ti$/ti/'       # ti - 提
+    - 'xform/^tu$/tu/'       # tu - 图
+    - 'xform/^tp$/tun/'      # tun - 屯
+    # t声母 + 组合韵母
+    - 'xform/^tij$/te/'       # te - 特
+    - 'xform/^tui$/tuan/'     # tuan - 团、湍
+    - 'xform/^tjk$/ta/'       # ta - 它
+    - 'xform/^tkm$/tong/'     # tong - 同、通、童
+    - 'xform/^tm,$/teng/'     # teng - 疼、腾、藤
+    - 'xform/^toj$/tei/'      # tei - 忒
+    - 'xform/^til$/tie/'      # tie - 铁、贴、帖
+    - 'xform/^tlm$/tiao/'     # tiao - 跳、条、调
+    - 'xform/^t,\.$/tui/'     # tui - 推、退、腿
+    - 'xform/^tkl$/tou/'      # tou - 头、偷、投
+
+    # s声母 + 单键韵母
+    - 'xform/^so$/suo/'     # suo - 所、锁、缩
+    - 'xform/^sj$/san/'      # san - 三、散、伞
+    - 'xform/^sk$/sao/'      # sao - 扫、嫂、骚
+    - 'xform/^sl$/sai/'      # sai - 赛、塞
+    - 'xform/^sh$/sang/'     # sang - 桑、嗓、丧
+    - 'xform/^su$/su/'       # su - 素、速、苏
+    - 'xform/^si$/si/'       # si - 思、司、四
+    - 'xform/^sp$/sun/'      # sun - 孙、损、笋
+
+    # s声母 + 组合键韵母
+    - 'xform/^sij$/se/'       # se - 色、涩、色
+    - 'xform/^sjk$/sa/'       # sa - 撒、洒、撒
+    - 'xform/^sio$/sen/'      # sen - 森、森、森
+    - 'xform/^sm,$/seng/'     # seng - 僧、僧、僧
+    - 'xform/^soj$/sei/'      # sei - 思、思、思
+    - 'xform/^skl$/sou/'      # sou - 搜、叟、搜
+    - 'xform/^sui$/suan/'     # suan - 酸、酸、酸
+    - 'xform/^skm$/song/'     # song - 送、送、送
+    - 'xform/^s,\.$/sui/'     # sui - 岁、碎、岁
+
+
+    # d声母 + 单键韵母
+    - 'xform/^dy$/ding/'     # ding - 定、顶、钉
+    - 'xform/^do$/duo/'      # duo - 多、朵、躲
+    - 'xform/^dj$/dan/'      # dan - 但、蛋、单
+    - 'xform/^dk$/dao/'      # dao - 道、到、刀
+    - 'xform/^dl$/dai/'      # dai - 带、代、待
+    - 'xform/^dm$/dian/'     # dian - 点、电、店
+    - 'xform/^dh$/dang/'     # dang - 当、党、档
+    - 'xform/^di$/di/'       # di - 地、第、低
+    - 'xform/^du$/du/'       # du - 度、读、度
+    - 'xform/^dp$/dun/'      # dun - 顿、盾、顿
+
+    # d声母 + 组合键韵母
+    - 'xform/^dij$/de/'       # de - 得、德、德
+    - 'xform/^dui$/duan/'     # duan - 段、断、段
+    - 'xform/^djk$/da/'       # da - 大、打、答
+    - 'xform/^dkm$/dong/'     # dong - 东、动、懂
+    - 'xform/^d,\.$/dui/'     # dui - 对、对、对
+    - 'xform/^dkl$/dou/'      # dou - 豆、抖、豆
+    - 'xform/^doj$/dei/'     # dei - 得
+    - 'xform/^dlm$/diao/'     # diao - 掉、钓、吊
+    - 'xform/^djl$/diu/'      # diu - 丢
+    - 'xform/^dm,$/deng/'     # deng - 等、登、灯
+    - 'xform/^dil$/die/'      # die - 爹、叠、蝶
+    - 'xform/^dk\.$/dia/'     # dia - 嗲
+
+
+    # f声母 + 单键韵母
+    - 'xform/^fj$/fan/'      # fan - 反、饭、翻
+    - 'xform/^fh$/fang/'     # fang - 方、放、房
+    - 'xform/^fo$/fo/'       # fo - 佛
+    - 'xform/^fu$/fu/'       # fu - 父、富、付
+
+    # f声母 + 组合键韵母
+    - 'xform/^foj$/fei/'      # fei - 非、飞、飞
+    - 'xform/^fjk$/fa/'       # fa - 法、发、法
+    - 'xform/^fio$/fen/'      # fen - 分、分、分
+    - 'xform/^fm,$/feng/'     # feng - 风、封、封
+    - 'xform/^fkl$/fou/'      # fou - 否、否、否
+
+      # g声母 + 单键韵母
+    - 'xform/^go$/g*uo/'     # guo - 国、过、果 (临时标记防止二次映射)
+    - 'xform/^gj$/gan/'      # gan - 干、敢、感
+    - 'xform/^gk$/gao/'      # gao - 高、告、搞
+    - 'xform/^gl$/gai/'      # gai - 该、改、盖
+    - 'xform/^gh$/gang/'     # gang - 刚、钢、港
+    - 'xform/^gu$/gu/'       # gu - 古、故、顾
+    - 'xform/^gp$/gun/'      # gun - 滚、棍、滚
+    - 'xform/^gy$/guai/'     # guai - 怪、拐、乖
+    - 'xform/^gkm$/gong/'     # gong - 工、公、共
+
+    # g声母 + 组合键韵母
+    - 'xform/^gij$/ge/'       # ge - 个、各、各
+    - 'xform/^gui$/guan/'     # guan - 关、管、管
+    - 'xform/^gjk$/ga/'       # ga - 加、家、加
+    - 'xform/^gio$/gen/'      # gen - 根、跟、艮
+    - 'xform/^g,\.$/gui/'     # gui - 归、贵、贵
+    - 'xform/^gkl$/gou/'      # gou - 狗、够、够
+    - 'xform/^goj$/gei/'      # gei - 给、给、给
+    - 'xform/^guo$/guang/'    # guang - 光、广、逛
+    - 'xform/^gk\.$/gua/'     # gua - 瓜、挂、刮
+    - 'xform/^gm,$/geng/'     # geng - 更、耕、更
+
+
+    # z声母 + 单键韵母
+    - 'xform/^zo$/zuo/'      # zuo - 做、作、坐
+    - 'xform/^zj$/zan/'      # zan - 赞、暂
+    - 'xform/^zk$/zao/'      # zao - 早、造、糟
+    - 'xform/^zl$/zai/'      # zai - 在、再、载
+    - 'xform/^zh$/zang/'     # zang - 脏、葬、藏
+    - 'xform/^zu$/zu/'       # zu - 组
+    - 'xform/^zp$/zun/'      # zun - 尊、遵、尊
+    - 'xform/^zi$/zi/'       # zi - 子、子、子
+
+    # z声母 + 组合键韵母
+    - 'xform/^zij$/ze/'       # ze - 则、则、则
+    - 'xform/^zui$/zuan/'     # zuan - 钻、赚、钻
+    - 'xform/^zjk$/za/'       # za - 杂、砸、杂
+    - 'xform/^zio$/zen/'      # zen - 怎、怎、怎
+    - 'xform/^zkm$/zong/'     # zong - 宗、总、综
+    - 'xform/^z,\.$/zui/'     # zui - 最、醉、醉
+    - 'xform/^zkl$/zou/'      # zou - 走、奏、奏
+    - 'xform/^zoj$/zei/'      # zei - 贼、贼、贼
+    - 'xform/^zm,$/zeng/'     # zeng - 增、增、增
+
+
+    # x声母 + 单键韵母
+    - 'xform/^xy$/xing/'     # xing - 行、星、性
+    - 'xform/^xn$/xin/'      # xin - 心、新、信
+    - 'xform/^xm$/xian/'     # xian - 现、先、线
+    - 'xform/^xu$/xu/'       # xu - 徐、需、虚
+    - 'xform/^xp$/xun/'      # xun - 寻、巡、训
+    - 'xform/^xi$/xi/'       # xi - 西、细、习
+
+    # x声母 + 组合键韵母
+    - 'xform/^xui$/xuan/'     # xuan - 选、选、选
+    - 'xform/^xil$/xie/'      # xie - 些、些、些
+    - 'xform/^xjl$/xiu/'      # xiu - 修、修、修
+    - 'xform/^xk\.$/xia/'     # xia - 下、夏、霞
+    - 'xform/^xkm$/xiong/'  # xiong - 胸、胸、胸
+    - 'xform/^xlm$/xiao/'   # xiao - 小、笑、笑
+    - 'xform/^xuo$/xiang/'    # xiang - 想、想、想
+    - 'xform/^xm\.$/xue/'     # xue - 学、雪、血
+
+    # c声母 + 单键韵母
+    - 'xform/^co$/cuo/'      # cuo - 错、措、搓
+    - 'xform/^cj$/can/'      # can - 参、残、餐
+    - 'xform/^ck$/cao/'      # cao - 草、操、曹
+    - 'xform/^cl$/cai/'      # cai - 才、菜、彩
+    - 'xform/^ch$/cang/'     # cang - 藏、仓、苍
+    - 'xform/^ci$/ci/'       # ci - 此、次、词
+    - 'xform/^cu$/cu/'       # cu - 粗、粗、粗
+    - 'xform/^cp$/cun/'      # cun - 存、存、存
+
+    # c声母 + 组合键韵母
+    - 'xform/^cij$/ce/'       # ce - 策、策、策
+    - 'xform/^cui$/cuan/'     # cuan - 窜、窜、窜
+    - 'xform/^cjk$/ca/'       # ca - 擦、擦、擦
+    - 'xform/^c,\.$/cui/'     # cui - 脆、脆、脆
+    - 'xform/^ckl$/cou/'      # cou - 凑、凑、凑
+    - 'xform/^ckm$/cong/'     # cong - 从、从、从
+    - 'xform/^cio$/cen/'      # cen - 参、参、参
+    - 'xform/^cm,$/ceng/'     # ceng - 层、层、层
+
+    # v声母 + 单键韵母（代表zh）
+    - 'xform/^vj$/zhan/'     # zhan - 站、战、占
+    - 'xform/^vk$/zhao/'     # zhao - 找、照、招
+    - 'xform/^vl$/zhai/'     # zhai - 摘、宅、债
+    - 'xform/^vh$/zhang/'    # zhang - 张、长、章
+    - 'xform/^vi$/zhi/'      # zhi - 之、支、只
+    - 'xform/^vu$/zhu/'      # zhu - 主、住、著
+    - 'xform/^vo$/zhuo/'     # zhuo - 桌、捉、着
+    - 'xform/^vp$/zhun/'     # zhun - 准、准、准
+    - 'xform/^vy$/zhuai/'     # zhuai - 拽、转
+
+    # v声母 + 组合键韵母
+    - 'xform/^vij$/zhe/'      # zhe - 这、者、着
+    - 'xform/^vui$/zhuan/'    # zhuan - 转、专、赚
+    - 'xform/^vjk$/zha/'      # zha - 炸、渣、闸
+    - 'xform/^vkm$/zhong/'    # zhong - 中、种、重
+    - 'xform/^vuo$/zhuang/'   # zhuang - 装、撞、庄
+    - 'xform/^vio$/zhen/'     # zhen - 真、阵、针
+    - 'xform/^vm,$/zheng/'    # zheng - 正、政、证
+    - 'xform/^voj$/zhei/'     # zhei - 这
+    - 'xform/^v,\.$/zhui/'    # zhui - 追、坠、锥
+    - 'xform/^vkl$/zhou/'     # zhou - 周、州、洲
+    - 'xform/^vk\.$/zhua/'    # zhua - 抓、爪
+
+    # b声母 + 单键韵母
+    - 'xform/^by$/bing/'     # bing - 病、并、冰
+    - 'xform/^bj$/ban/'      # ban - 半、办、班
+    - 'xform/^bk$/bao/'      # bao - 包、报、保
+    - 'xform/^bl$/bai/'      # bai - 白、百、摆
+    - 'xform/^bn$/bin/'      # bin - 宾、滨
+    - 'xform/^bm$/bian/'     # bian - 边、变、便
+    - 'xform/^bh$/bang/'     # bang - 帮、棒、榜
+    - 'xform/^bi$/bi/'       # bi - 比、必、笔
+    - 'xform/^bu$/bu/'       # bu - 不、布、步
+
+    # b声母 + 组合键韵母
+    - 'xform/^bjk$/ba/'       # ba - 把、爸、吧
+    - 'xform/^bio$/ben/'      # ben - 本、奔、笨
+    - 'xform/^bm,$/beng/'     # beng - 崩、蹦、绷
+    - 'xform/^boj$/bei/'      # bei - 北、被、背
+    - 'xform/^blm$/biao/'     # biao - 表、标、镖
+    - 'xform/^bil$/bie/'      # bie - 别、憋、鳖
+
+
+
+    # 三、组合键声母 + 单键韵母 / 组合韵母
+
+    # df组合(y声母) + 单键韵母
+    - 'xform/^dfy$/ying/'     # ying - 应、影、英
+    - 'xform/^dfj$/yan/'      # yan - 言、严、烟
+    - 'xform/^dfk$/yao/'      # yao - 要、药、腰
+    - 'xform/^dfn$/yin/'      # yin - 音、银、因
+    - 'xform/^dfh$/yang/'     # yang - 阳、养、样
+    - 'xform/^dfi$/yi/'       # yi - 一、已、以
+    - 'xform/^dfu$/yu/'       # yu - 鱼、语、雨
+    - 'xform/^dfp$/yun/'      # yun - 云、运、韵
+
+
+    # df组合(y声母) + 组合韵母
+    - 'xform/^dfij$/ye/'      # ye - 也、也、也
+    - 'xform/^dfui$/yuan/'    # yuan - 原、圆、圆
+    - 'xform/^dfkm$/yong/'    # yong - 用、用、用
+    - 'xform/^dfm\.$/yue/'     # yue - 月、约、约
+    - 'xform/^dfkl$/you/'     # you - 由、有、又
+    - 'xform/^dfjk$/ya/'      # ya - 牙、雅、压
+
+
+    # ef组合(sh声母) + 单键韵母
+    - 'xform/^efo$/shuo/'     # shuo - 说、硕、朔
+    - 'xform/^efj$/shan/'     # shan - 山、闪、善
+    - 'xform/^efk$/shao/'     # shao - 少、绍、烧
+    - 'xform/^efl$/shai/'     # shai - 晒、筛
+    - 'xform/^efh$/shang/'    # shang - 上、商、伤
+    - 'xform/^efi$/shi/'      # shi - 是、时、十
+    - 'xform/^efu$/shu/'      # shu - 书、树、数
+    - 'xform/^efp$/shun/'     # shun - 顺、顺、顺
+    - 'xform/^efy$/shuai/'    # shuai - 帅
+
+
+    # ef组合(sh声母) + 组合键韵母
+    - 'xform/^efk\.$/shua/'   # shua - 刷
+    - 'xform/^efij$/she/'     # she - 设、社、射
+    - 'xform/^efui$/shuan/'   # shuan - 栓、拴
+    - 'xform/^efuo$/shuang/'  # shuang - 双、爽、霜
+    - 'xform/^efio$/shen/'    # shen - 深、身、神
+    - 'xform/^efm,$/sheng/'   # sheng - 生、声、升
+    - 'xform/^ef,\.$/shui/'   # shui - 水、睡、谁
+    - 'xform/^efkl$/shou/'    # shou - 手、受、收
+    - 'xform/^efjk$/sha/'     # sha - 沙、傻、杀
+
+    # er组合(ch声母) + 单键韵母
+    - 'xform/^ero$/chuo/'     # chuo - 戳、绰、啜
+    - 'xform/^erj$/chan/'     # chan - 产、缠、蝉
+    - 'xform/^erk$/chao/'     # chao - 朝、潮、炒
+    - 'xform/^erl$/chai/'     # chai - 柴、拆、差
+    - 'xform/^erh$/chang/'    # chang - 长、常、场
+    - 'xform/^eri$/chi/'      # chi - 吃、池、迟
+    - 'xform/^eru$/chu/'      # chu - 出、初、除
+    - 'xform/^ery$/chuai/'    # chuai - 揣、踹
+    - 'xform/^erp$/chun/'     # chun - 春、纯、唇
+
+    # er组合(ch声母) + 组合韵母
+    - 'xform/^erij$/che/'     # che - 车、彻、撤
+    - 'xform/^erui$/chuan/'   # chuan - 传、川、船
+    - 'xform/^erkm$/chong/'   # chong - 重、冲、充
+    - 'xform/^eruo$/chuang/'  # chuang - 窗、床、创
+    - 'xform/^erio$/chen/'    # chen - 陈、沉、晨
+    - 'xform/^erm,$/cheng/'   # cheng - 成、城、程
+    - 'xform/^er,\.$/chui/'   # chui - 吹、垂
+    - 'xform/^erkl$/chou/'    # chou - 抽、愁、丑
+    - 'xform/^erjk$/cha/'     # cha - 茶、查、差
+
+    # wr组合(p声母) + 单键韵母
+    - 'xform/^wry$/ping/'     # ping - 平、评、瓶
+    - 'xform/^wrj$/pan/'      # pan - 盘、判、攀
+    - 'xform/^wrk$/pao/'      # pao - 跑、炮、泡
+    - 'xform/^wrl$/pai/'      # pai - 排、拍、牌
+    - 'xform/^wrn$/pin/'      # pin - 品、拼、贫
+    - 'xform/^wrm$/pian/'     # pian - 片、偏、骗
+    - 'xform/^wrh$/pang/'     # pang - 旁、胖、庞
+    - 'xform/^wri$/pi/'       # pi - 皮、批、披
+    - 'xform/^wru$/pu/'       # pu - 普、铺、朴
+    - 'xform/^wro$/po/'      # po - 破、婆、坡
+    # wr组合(p声母) + 组合韵母
+    - 'xform/^wrio$/pen/'     # pen - 盆、喷
+    - 'xform/^wrm,$/peng/'    # peng - 朋、碰、蓬
+    - 'xform/^wroj$/pei/'     # pei - 配、培、赔
+    - 'xform/^wril$/pie/'     # pie - 撇、瞥
+    - 'xform/^wrlm$/piao/'    # piao - 飘、票、漂
+    - 'xform/^wrjk$/pa/'      # pa - 爬、怕、帕
+    # xc组合(h声母) + 单键韵母
+    - 'xform/^xco$/huo/'      # huo - 火、活、货
+    - 'xform/^xcj$/han/'      # han - 汉、寒、汗
+    - 'xform/^xck$/hao/'      # hao - 好、号、豪
+    - 'xform/^xcl$/hai/'      # hai - 海、害、孩
+    - 'xform/^xch$/hang/'     # hang - 行、航、杭
+    - 'xform/^xcu$/hu/'       # hu - 胡、湖、糊
+    - 'xform/^xci$/he/'       # he - 和、河、合
+    - 'xform/^xcy$/huai/'     # huai - 怀、坏、淮
+    - 'xform/^xcp$/hun/'      # hun - 混、昏、昏
+
+    # xc组合(h声母) + 组合韵母
+    - 'xform/^xck\.$/hua/'    # hua - 化、话、华
+    - 'xform/^xcij$/he/'      # he - 和、河、合
+    - 'xform/^xcui$/huan/'    # huan - 欢、换、还
+    - 'xform/^xckm$/hong/'    # hong - 红、洪、弘
+    - 'xform/^xcuo$/huang/'   # huang - 黄、皇、荒
+    - 'xform/^xcio$/hen/'     # hen - 很、恨
+    - 'xform/^xcm,$/heng/'    # heng - 恒、横
+    - 'xform/^xc,\.$/hui/'    # hui - 会、回、灰
+    - 'xform/^xckl$/hou/'     # hou - 后、候、厚
+    - 'xform/^xcjk$/ha/'      # ha - 哈、哈、哈
+    - 'xform/^xcoj$/hei/'     # hei - 黑、嘿、嘿
+
+
+    # cv组合(j声母) + 单键韵母
+    - 'xform/^cvy$/jing/'     # jing - 京、精、静
+    - 'xform/^cvn$/jin/'      # jin - 金、进、近
+    - 'xform/^cvm$/jian/'     # jian - 见、间、简
+    - 'xform/^cvi$/ji/'       # ji - 机、及、基
+    - 'xform/^cvp$/jun/'      # jun - 军、君、俊
+    - 'xform/^cvu$/ju/'       # ju - 举、局、举
+
+
+    # cv组合(j声母) + 组合韵母
+    - 'xform/^cvjl$/jiu/'     # jiu - 九、就、久
+    - 'xform/^cvui$/juan/'    # juan - 卷、眷
+    - 'xform/^cvm\.$/jue/'    # jue - 觉、决、绝
+    - 'xform/^cvil$/jie/'     # jie - 结、接、街
+    - 'xform/^cvlm$/jiao/'    # jiao - 教、交、角
+    - 'xform/^cvk\.$/jia/'     # jia - 家、加、假
+    - 'xform/^cvkm$/jiong/'    # jiong - 炯、窘、迥
+    - 'xform/^cvuo$/jiang/'    # jiang - 江、将、讲
+
+    # sf组合(k声母) + 单键韵母
+    - 'xform/^sfj$/kan/'      # kan - 看、砍、坎
+    - 'xform/^sfk$/kao/'      # kao - 考、靠、烤
+    - 'xform/^sfl$/kai/'      # kai - 开、凯
+    - 'xform/^sfh$/kang/'     # kang - 康、抗、炕
+    - 'xform/^sfu$/ku/'       # ku - 哭、库、苦
+    - 'xform/^sfy$/kuai/'     # kuai - 快、筷、怪
+    - 'xform/^sfp$/kun/'      # kun - 困、困、困
+    - 'xform/^sfo$/kuo/'      # kuo - 阔、括、阔
+
+    # sf组合(k声母) + 组合韵母
+    - 'xform/^sfk\.$/kua/'    # kua - 夸、垮、跨
+    - 'xform/^sfij$/ke/'      # ke - 可、科、课
+    - 'xform/^sfui$/kuan/'    # kuan - 宽、款
+    - 'xform/^sfjk$/ka/'      # ka - 卡
+    - 'xform/^sfkm$/kong/'    # kong - 空、孔、控
+    - 'xform/^sfuo$/kuang/'   # kuang - 况、框、狂
+    - 'xform/^sfio$/ken/'     # ken - 肯、啃
+    - 'xform/^sfm,$/keng/'    # keng - 坑
+    - 'xform/^sfoj$/kei/'     # kei - 剋
+    - 'xform/^sf,\.$/kui/'    # kui - 亏、愧、盔
+    - 'xform/^sfkl$/kou/'     # kou - 口、扣、抠
+
+    # sd组合(l声母) + 单键韵母
+    - 'xform/^sdy$/ling/'     # ling - 零、灵、领
+    - 'xform/^sdo$/luo/'      # luo - 落、罗、络
+    - 'xform/^sdj$/lan/'      # lan - 蓝、览、烂
+    - 'xform/^sdk$/lao/'      # lao - 老、劳、牢
+    - 'xform/^sdl$/lai/'      # lai - 来、莱、徕
+    - 'xform/^sdn$/lin/'      # lin - 林、临、邻
+    - 'xform/^sdm$/lian/'     # lian - 连、联、恋
+    - 'xform/^sdh$/lang/'     # lang - 浪、郎、狼
+    - 'xform/^sdu$/lu/'       # lu - 路、鲁、芦
+    - 'xform/^sdi$/li/'       # li - 里、里、里
+    - 'xform/^sd,\.$/lv/'     # lv - 绿、旅、旅
+    - 'xform/^sdp$/lun/'      # lun - 轮、伦、轮
+
+    # sd组合(l声母) + 组合韵母
+    - 'xform/^sdjl$/liu/'     # liu - 六、流、留
+    - 'xform/^sdij$/le/'      # le - 了、乐
+    - 'xform/^sdui$/luan/'    # luan - 乱、卵、峦
+    - 'xform/^sdm\.$/lve/'    # lve - 略、掠
+    - 'xform/^sdjk$/la/'      # la - 拉、啦
+    - 'xform/^sdkm$/long/'    # long - 龙、笼、隆
+    - 'xform/^sdm,$/leng/'    # leng - 冷、愣
+    - 'xform/^sdoj$/lei/'     # lei - 累、类、泪
+    - 'xform/^sdil$/lie/'     # lie - 列、烈、裂
+    - 'xform/^sdlm$/liao/'    # liao - 了、料、聊
+    - 'xform/^sdkl$/lou/'     # lou - 楼、搂、漏
+    - 'xform/^sduo$/liang/'   # liang - 两、两、两
+    - 'xform/^sdk\.$/lia/'     # lia - 俩
+
+
+    # dv组合(n声母) + 单键韵母
+    - 'xform/^dvy$/ning/'     # ning - 宁、拧、凝
+    - 'xform/^dvo$/nuo/'      # nuo - 诺、挪、懦
+    - 'xform/^dvj$/nan/'      # nan - 南、男、难
+    - 'xform/^dvk$/nao/'      # nao - 脑、闹、恼
+    - 'xform/^dvl$/nai/'      # nai - 奶、耐
+    - 'xform/^dvn$/nin/'      # nin - 您
+    - 'xform/^dvm$/nian/'     # nian - 年、念、碾
+    - 'xform/^dvh$/nang/'     # nang - 囊
+    - 'xform/^dvi$/ni/'       # ni - 你、你、你
+    - 'xform/^dvu$/nu/'       # nu - 努、怒、努
+
+
+    # dv组合(n声母) + 组合韵母
+    - 'xform/^dvjl$/niu/'     # niu - 牛、纽、扭
+    - 'xform/^dvij$/ne/'      # ne - 呢、讷
+    - 'xform/^dvui$/nuan/'    # nuan - 暖
+    - 'xform/^dvm\.$/nve/'    # nve - 虐、疟
+    - 'xform/^dvjk$/na/'      # na - 那、拿、哪
+    - 'xform/^dvkm$/nong/'    # nong - 农、浓、弄
+    - 'xform/^dvio$/nen/'     # nen - 嫩
+    - 'xform/^dvm,$/neng/'    # neng - 能
+    - 'xform/^dvoj$/nei/'     # nei - 内
+    - 'xform/^dvil$/nie/'     # nie - 捏、聂、啮
+    - 'xform/^dvlm$/niao/'    # niao - 鸟、尿
+    - 'xform/^dvuo$/niang/'   # niang - 娘、酿
+    - 'xform/^dvkl$/nou/'     # nou - 耨
+    - 'xform/^dv,\.$/nv/'     # nv - 女、女、女
+
+    # we组合(m声母) + 单键韵母
+    - 'xform/^wey$/ming/'     # ming - 明、名、命
+    - 'xform/^wej$/man/'      # man - 满、慢、蛮
+    - 'xform/^wek$/mao/'      # mao - 毛、猫、冒
+    - 'xform/^wel$/mai/'      # mai - 买、卖、埋
+    - 'xform/^wen$/min/'      # min - 民、敏、闵
+    - 'xform/^wem$/mian/'     # mian - 面、免、棉
+    - 'xform/^weh$/mang/'     # mang - 忙、茫、盲
+    - 'xform/^weu$/mu/'       # mu - 木、目、母
+    - 'xform/^weo$/mo/'       # mo - 摸、摩、魔
+    - 'xform/^wei$/mi/'       # mi - 米、米、米
+
+
+    # we组合(m声母) + 组合韵母
+    - 'xform/^weij$/me/'      # me - 么、麽
+    - 'xform/^wejk$/ma/'      # ma - 马、妈、吗
+    - 'xform/^weio$/men/'     # men - 门、们、闷
+    - 'xform/^wem,$/meng/'    # meng - 梦、蒙、猛
+    - 'xform/^weoj$/mei/'     # mei - 美、没、每
+    - 'xform/^weil$/mie/'     # mie - 灭、蔑、咩
+    - 'xform/^welm$/miao/'    # miao - 妙、苗、描
+    - 'xform/^wekl$/mou/'     # mou - 某、谋、牟
+
+
+
+    # 零声母
+    - 'xform/^eij$/e/'       # e -呃
+    - 'xform/^em,$/eng/'     # eng - 嗯
+    - 'xform/^ajk$/a/'       # a - 啊、阿、呵
+    - 'xform/^xvo$/x*o/'     # o - 哦、喔（临时标记，避免命中右手 o）
+    - 'xform/^an$/an/'       # an - 安、按、暗
+    - 'xform/^en$/en/'       # en - 恩
+    - 'xform/^xvu$/ou/'      # ou - 欧、偶、藕
+    - 'xform/^ah$/ang/'      # ang - 昂、盎
+    - 'xform/^eui$/e*r/'     # er - 儿、耳、尔（临时标记，避免命中左手 er）
+
+    # ===== 左右半区的多键和弦可独立结算 =====
+    # 位于完整音节之后，避免解码出的声母（如 sh）再次命中跨区规则。先处理
+    # 右侧，再处理左侧；少数上下文相关拼写由 speller.algebra 接受为等价码。
+    # 单物理键始终保留原字母，因为用户可能正在输入英文；同时按下
+    # 或至少一侧为多键的跨批组合，仍由前面的完整音节规则映射。
+    - 'xform/^jl$/iu/'
+    - 'xform/^ij$/e/'
+    - 'xform/^ui$/uan/'
+    - 'xform/^m\.$/ue/'
+    - 'xform/^jk$/a/'
+    - 'xform/^km$/ong/'
+    - 'xform/^uo$/uang/'
+    - 'xform/^io$/en/'
+    - 'xform/^m,$/eng/'
+    - 'xform/^oj$/ei/'
+    - 'xform/^il$/ie/'
+    - 'xform/^lm$/iao/'
+    - 'xform/^,\.$/ui/'
+    - 'xform/^kl$/ou/'
+    - 'xform/^k\.$/ia/'
+    - 'xform/^df$/y/'
+    - 'xform/^ef$/sh/'
+    - 'xform/^er$/ch/'
+    - 'xform/^xv$/o/'
+    - 'xform/^wr$/p/'
+    - 'xform/^xc$/h/'
+    - 'xform/^cv$/j/'
+    - 'xform/^sf$/k/'
+    - 'xform/^sd$/l/'
+    - 'xform/^dv$/n/'
+    - 'xform/^we$/m/'
+
+    # 还原临时标记，解决二次映射问题
+    - 'xform/^x\*o$/o/'      # 还原零声母 o
+    - 'xform/^e\*r$/er/'     # 还原零声母 er
+    - 'xform/^w\*ei$/wei/'    # 还原 w*ei -> wei
+    - 'xform/^w\*en$/wen/'    # 还原 w*en -> wen
+    - 'xform/^g\*uo$/guo/'    # 还原 g*uo -> guo
+    - 'xform/^u\*ang$/uang/'  # 还原 u*ang -> uang
+
+
+
+speller:
+  __include: rime_ice.schema:/speller
+  # ,/. 只属于 chord_composer 的双角色物理键；和弦结算为单键时必须
+  # 继续交给 punctuator，而不能在这里被当作无候选拼音编码吞掉。
+  alphabet: 'qwertyuiopasdfghjklzxcvbnm'
+  initials: 'qwertyuiopasdfghjklzxcvbnm'
+  delimiter: " '"
+translator:
+  dictionary: rime_ice
+  prism: rime_ice
+  enable_word_completion: true
+  spelling_hints: 8
+  always_show_comments: true
+  initial_quality: 1.2
+  comment_format:
+    - xform/^/［/
+    - xform/$/］/
+  preedit_format:
+    - xform/([nl])v/$1ü/
+    - xform/([nl])ue/$1üe/
+    - xform/([jqxy])v/$1u/
+
+punctuator:
+  import_preset: default
+
+key_binder:
+  import_preset: default
+
+recognizer:
+  import_preset: default
+  # Lowercase v is both a FlyYao physical key and the start of ordinary
+  # English words. Override rime_ice's symbols route so a settled single v
+  # remains literal; other inherited recognizer patterns stay available.
+  patterns:
+    punct: "^$"

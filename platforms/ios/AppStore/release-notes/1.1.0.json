@@ -1,5 +1,0 @@
-{
-  "en-US": "Manage official plugins from the app. Keyboard haptics now respond more consistently during slow and rapid typing. The candidate row keeps Buffer available while hiding Settings during composition. Optionally hold and swipe up on ordinary keys to enter numbers and punctuation; chord layouts keep their existing gestures. Imported Rime scheme packages can now be removed, with a built-in scheme restored when the active package is deleted. The settings home has a refreshed RIMES logo and brand message.",
-  "zh-Hans": "新增官方插件管理。优化慢打与快速连续输入时的震动反馈；候选栏在组字时隐藏设置按钮，并保留 Buffer 入口。普通布局可选开启长按上滑输入数字与标点，并击布局保持原有手势。支持删除已导入的 Rime 方案包，删除当前方案后恢复内置方案。设置首页更新 RIMES 标志与品牌文案。",
-  "zh-Hant": "新增官方外掛管理。優化慢打與快速連續輸入時的震動回饋；候選列在組字時隱藏設定按鈕，並保留 Buffer 入口。一般佈局可選擇開啟長按上滑輸入數字與標點，並擊佈局維持原有手勢。支援刪除已匯入的 Rime 方案套件，刪除目前方案後恢復內建方案。設定首頁更新 RIMES 標誌與品牌文案。"
-}

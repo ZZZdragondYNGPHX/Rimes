@@ -1,0 +1,36 @@
+{
+  "id": "builtin.scholay",
+  "nameZH": "Reference",
+  "nameEN": "Reference",
+  "summaryZH": "检索学术论文，把一个观点改写成带夹注的正文与对应参考文献。",
+  "summaryEN": "Reference official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "0.1.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.scholay",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate",
+    "reference.search"
+  ],
+  "contribution": {
+    "type": "reference.search.v1",
+    "options": {
+      "citationStyle": "apa"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

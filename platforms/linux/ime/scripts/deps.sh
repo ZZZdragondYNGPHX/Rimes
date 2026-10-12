@@ -1,52 +1,29 @@
 #!/usr/bin/env bash
-# Print or install build/test dependencies for the Linux Fcitx5 IME.
+# Install the native Linux build/runtime dependencies; display tests are optional.
 set -euo pipefail
-
-usage() {
-    cat <<'EOF'
-Usage: deps.sh [--install] [--print]
-
-Debian / Ubuntu (Noble and later):
-  sudo apt install build-essential g++ cmake extra-cmake-modules pkg-config gettext \
-    libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev fcitx5-modules-dev \
-    fcitx5 fcitx5-modules fcitx5-frontend-gtk3 fcitx5-frontend-qt5 \
-    librime-dev librime-plugin-lua librime-bin \
-    libopencc-dev libopencc-data \
-    xvfb xdotool dbus-x11 python3-gi gir1.2-gtk-3.0 libgtk-3-dev \
-    libgtk-layer-shell-dev \
-    qtbase5-dev fonts-noto-cjk weston wtype sway
-    # Runtime recommend for Wayland Capsule Ctrl+C (also a .deb Recommends):
-    #   wl-clipboard
-
-Arch:
-  sudo pacman -S --needed base-devel cmake extra-cmake-modules fcitx5 fcitx5-qt \
-    librime librime-lua opencc pkgconf gettext gtk3 qt5-base \
-    xorg-server-xvfb xdotool python-gobject weston wtype \
-    gtk-layer-shell sway
-
-Fedora:
-  sudo dnf install gcc-c++ cmake extra-cmake-modules pkgconf-pkg-config gettext \
-    fcitx5-devel librime-devel librime-lua opencc-devel \
-    gtk3-devel qt5-qtbase-devel xorg-x11-server-Xvfb xdotool \
-    python3-gobject weston wtype gtk-layer-shell sway
-EOF
-}
-
-if [[ "${1:-}" == "--install" ]]; then
-    if command -v apt-get >/dev/null; then
-        sudo apt-get install -y \
-            build-essential g++ cmake extra-cmake-modules pkg-config gettext \
-            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev fcitx5-modules-dev \
-            fcitx5 fcitx5-modules fcitx5-frontend-gtk3 fcitx5-frontend-qt5 \
-            librime-dev librime-plugin-lua librime-bin \
-            libopencc-dev libopencc-data \
-            xvfb xdotool dbus-x11 python3-gi gir1.2-gtk-3.0 libgtk-3-dev \
-            libgtk-layer-shell-dev \
-            qtbase5-dev fonts-noto-cjk weston wtype sway
-    else
-        echo "Use --print and install the matching packages for this distro." >&2
-        exit 1
-    fi
+mode=${1:---print}
+case "$mode" in --print|--install) ;; *) echo 'Usage: deps.sh [--print|--install]' >&2; exit 2 ;; esac
+if command -v pacman >/dev/null; then
+    # Current Arch/CachyOS librime builds include Lua; there is no librime-lua package.
+    packages=(base-devel cmake ninja extra-cmake-modules pkgconf gettext fcitx5
+              fcitx5-qt fcitx5-gtk fcitx5-configtool librime opencc curl jsoncpp gtk3
+              qt6-base gtk-layer-shell wl-clipboard)
+    manager=(pacman -S --needed)
+elif command -v apt-get >/dev/null; then
+    packages=(build-essential cmake ninja-build extra-cmake-modules pkg-config gettext
+              libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev fcitx5-modules-dev
+              fcitx5 fcitx5-modules fcitx5-frontend-gtk3 fcitx5-frontend-qt6
+              librime-dev librime-plugin-lua librime-bin libopencc-dev libopencc-data
+              libcurl4-openssl-dev libjsoncpp-dev
+              libgtk-3-dev libgtk-layer-shell-dev qt6-base-dev wl-clipboard)
+    manager=(apt-get install)
 else
-    usage
+    echo 'Install CMake, a C++ compiler, Fcitx5 development headers, librime with Lua, OpenCC, GTK3, Qt6 and gtk-layer-shell.' >&2
+    exit 1
+fi
+if [[ "$mode" == --install ]]; then
+    if (( EUID == 0 )); then "${manager[@]}" "${packages[@]}";
+    else sudo "${manager[@]}" "${packages[@]}"; fi
+else
+    printf 'sudo'; printf ' %q' "${manager[@]}" "${packages[@]}"; printf '\n'
 fi

@@ -98,6 +98,7 @@ public:
     void resume_workbench_processing();
     void discard_for_privacy();
 
+    bool replace_range(const std::vector<Block>& expected, int insertion, std::size_t begin, std::size_t end, std::string_view replacement);
     bool append(std::string_view text, Origin origin = Origin::Rime);
     bool append_direct_fragment(std::string_view text, std::string_view owner);
     bool delete_backward_direct(std::string_view owner);

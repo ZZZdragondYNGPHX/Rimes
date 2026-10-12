@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/scholay/rimes-plugins",
+  "revision": "75859624e38308ae9536a9b4d1754df09d29b802",
+  "modifications": [
+    "Removed macOS/iOS native sources and their import mappings for the Linux fork."
+  ]
+}

@@ -1,5 +1,8 @@
 #include "buffer_placement.hpp"
 #include "buffer_protocol.hpp"
+#include "ai_settings.hpp"
+#include <json/json.h>
+#include <memory>
 
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
@@ -44,6 +47,16 @@ struct App {
     GtkWidget* send = nullptr;
     GtkWidget* progress = nullptr;
     GtkWidget* target = nullptr;
+    GtkWidget* suggestion_row = nullptr;
+    GtkWidget* suggestion_label = nullptr;
+    GtkWidget* suggestion_accept = nullptr;
+    GtkWidget* ai_row = nullptr;
+    GtkWidget* ai_result = nullptr;
+    GtkWidget* ai_generate = nullptr;
+    GtkWidget* ai_cancel = nullptr;
+    GtkWidget* ai_copy = nullptr;
+    GtkWidget* modes[3] = {};
+    bool updating_mode = false;
     int socket_fd = -1;
     guint io_id = 0;
     std::string incoming;
@@ -179,150 +192,72 @@ void RebuildChips(App* app) {
 }
 
 void ApplySnapshotJson(App* app, const std::string& json) {
-    if (json.find("\"type\":\"request_clipboard\"") != std::string::npos) {
-        GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
-        gchar* text = gtk_clipboard_wait_for_text(clipboard);
-        if (text != nullptr && text[0] != '\0') {
-            std::string command = std::string("{\"v\":1,\"op\":\"paste\",\"text\":") +
-                                  rimes::buffer::JsonEscape(text) + '}';
-            SendCommand(app, command);
-            g_free(text);
+    Json::CharReaderBuilder builder;
+    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    Json::Value data;
+    std::string error;
+    if (!reader->parse(json.data(), json.data()+json.size(), &data, &error) || !data.isObject()) return;
+    if (data["type"]=="copy_result") {
+        if (data["text"].isString() && !app->snapshot.secure) {
+            const auto text=data["text"].asString();
+            if (g_utf8_validate(text.c_str(),static_cast<gssize>(text.size()),nullptr)) gtk_clipboard_set_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD),text.c_str(),static_cast<gint>(text.size()));
         }
         return;
     }
-    if (json.find("\"type\":\"snapshot\"") == std::string::npos) {
+    if (data["type"]=="request_clipboard") {
+        if (app->snapshot.secure) return;
+        gchar* text=gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD));
+        if (text && text[0]) SendCommand(app,"{\"v\":1,\"op\":\"paste\",\"text\":"+rimes::buffer::JsonEscape(text)+"}");
+        g_free(text);
         return;
     }
-    app->snapshot.visible = json.find("\"visible\":true") != std::string::npos;
-    app->snapshot.capturing = json.find("\"capturing\":true") != std::string::npos;
-    app->snapshot.secure = json.find("\"secure\":true") != std::string::npos;
-    app->snapshot.empty = json.find("\"empty\":true") != std::string::npos;
-    const auto preedit_key = json.find("\"preedit\":");
-    if (preedit_key != std::string::npos) {
-        rimes::buffer::Command ignored;
-        std::string error;
-        (void)ignored;
-        (void)error;
+    if (data["type"]!="snapshot") return;
+    auto& snapshot=app->snapshot;
+    snapshot.visible=data["visible"].asBool(); snapshot.capturing=data["capturing"].asBool(); snapshot.secure=data["secure"].asBool(); snapshot.empty=data["empty"].asBool();
+    snapshot.preedit=data["preedit"].asString(); snapshot.placeholder=data["placeholder"].asString(); snapshot.target=data["target"].asString(); snapshot.staged_text=data["staged_text"].asString();
+    snapshot.caret={data["caret"]["x"].asInt(),data["caret"]["y"].asInt(),data["caret"]["w"].asInt(),data["caret"]["h"].asInt(),data["caret"]["valid"].asBool()};
+    snapshot.hold_progress=data["hold_progress"].asDouble();
+    snapshot.ai_mode=data.get("ai_mode","default").asString(); snapshot.ai_status=data.get("ai_status","").asString(); snapshot.ai_result=data.get("ai_result","").asString(); snapshot.ai_result_id=data.get("ai_result_id","").asString();
+    snapshot.suggestion_text=data.get("suggestion_text","").asString(); snapshot.suggestion_kind=data.get("suggestion_kind","").asString(); snapshot.suggestion_id=data.get("suggestion_id","").asString(); snapshot.accept_key=data.get("accept_key","").asString(); snapshot.model_status=data.get("model_status","").asString();
+    snapshot.suggestion_ready=data.get("suggestion_ready",false).asBool(); snapshot.source_can_send=data.get("source_can_send",false).asBool();
+    snapshot.ai_busy=data.get("ai_busy",false).asBool(); snapshot.ai_can_copy=data.get("ai_can_copy",false).asBool(); snapshot.ai_can_send=data.get("ai_can_send",false).asBool();
+    snapshot.blocks.clear();
+    for (const auto& item : data["blocks"]) {
+        rimes::buffer::Block block; block.id=item["id"].asString(); block.text=item["text"].asString(); rimes::buffer::ParseOrigin(item["origin"].asString(),&block.origin); snapshot.blocks.push_back(std::move(block));
     }
-
-    // Re-parse through the same encoder fields we control.
-    // A full JSON parser is unnecessary: the IME writes our snapshot schema.
-    auto extract_string = [&](const char* key) -> std::string {
-        const std::string needle = std::string("\"") + key + "\":\"";
-        const auto start = json.find(needle);
-        if (start == std::string::npos) {
-            return {};
-        }
-        std::string raw;
-        for (std::size_t index = start + needle.size(); index < json.size(); ++index) {
-            if (json[index] == '\\' && index + 1 < json.size()) {
-                raw.push_back(json[index]);
-                raw.push_back(json[index + 1]);
-                ++index;
-                continue;
-            }
-            if (json[index] == '"') {
-                break;
-            }
-            raw.push_back(json[index]);
-        }
-        std::string out;
-        rimes::buffer::JsonUnescape(raw, &out);
-        return out;
-    };
-    app->snapshot.preedit = extract_string("preedit");
-    app->snapshot.placeholder = extract_string("placeholder");
-    app->snapshot.target = extract_string("target");
-    app->snapshot.staged_text = extract_string("staged_text");
-
-    auto extract_int = [&](const char* key, int fallback) {
-        const std::string needle = std::string("\"") + key + "\":";
-        const auto start = json.find(needle);
-        if (start == std::string::npos) {
-            return fallback;
-        }
-        return static_cast<int>(g_ascii_strtoll(json.c_str() + start + needle.size(), nullptr, 10));
-    };
-    app->snapshot.caret.x = extract_int("x", 0);
-    app->snapshot.caret.y = extract_int("y", 0);
-    app->snapshot.caret.width = extract_int("w", 0);
-    app->snapshot.caret.height = extract_int("h", 0);
-    app->snapshot.caret.valid = json.find("\"valid\":true") != std::string::npos;
-
-    const auto progress_at = json.find("\"hold_progress\":");
-    if (progress_at != std::string::npos) {
-        app->snapshot.hold_progress =
-            g_ascii_strtod(json.c_str() + progress_at + std::strlen("\"hold_progress\":"), nullptr);
-    }
-
-    app->snapshot.blocks.clear();
-    std::size_t search = json.find("\"blocks\":[");
-    while (search != std::string::npos) {
-        const auto id_at = json.find("\"id\":\"", search);
-        const auto text_at = json.find("\"text\":\"", search);
-        const auto origin_at = json.find("\"origin\":\"", search);
-        const auto next_obj = json.find("},{", search);
-        const auto end_arr = json.find(']', search);
-        if (id_at == std::string::npos || text_at == std::string::npos ||
-            (end_arr != std::string::npos && id_at > end_arr)) {
-            break;
-        }
-        rimes::buffer::Block block;
-        auto take = [&](std::size_t at, const char* prefix) {
-            std::string raw;
-            for (std::size_t index = at + std::strlen(prefix); index < json.size(); ++index) {
-                if (json[index] == '\\' && index + 1 < json.size()) {
-                    raw.push_back(json[index]);
-                    raw.push_back(json[index + 1]);
-                    ++index;
-                    continue;
-                }
-                if (json[index] == '"') {
-                    break;
-                }
-                raw.push_back(json[index]);
-            }
-            std::string out;
-            rimes::buffer::JsonUnescape(raw, &out);
-            return out;
-        };
-        block.id = take(id_at, "\"id\":\"");
-        block.text = take(text_at, "\"text\":\"");
-        if (origin_at != std::string::npos && (next_obj == std::string::npos || origin_at < next_obj)) {
-            rimes::buffer::ParseOrigin(take(origin_at, "\"origin\":\""), &block.origin);
-        }
-        app->snapshot.blocks.push_back(block);
-        if (next_obj == std::string::npos || (end_arr != std::string::npos && next_obj > end_arr)) {
-            break;
-        }
-        search = next_obj + 1;
-    }
-
-    if (app->snapshot.visible && !app->snapshot.secure) {
+    const bool advanced=snapshot.ai_mode!="default";
+    const int height=kWindowHeight+(advanced ? 40 : 0)+(snapshot.ai_mode=="generate" && !snapshot.suggestion_text.empty() ? 40 : 0);
+    gtk_widget_set_size_request(app->window,kWindowWidth,height);
+    gtk_window_resize(GTK_WINDOW(app->window),kWindowWidth,height);
+    app->updating_mode=true;
+    for (int index=0; index<3; ++index) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->modes[index]), index==(snapshot.ai_mode=="generate" ? 1 : snapshot.ai_mode=="translate" ? 2 : 0));
+    app->updating_mode=false;
+    gtk_widget_set_visible(app->ai_row,advanced && !snapshot.secure);
+    gtk_widget_set_visible(app->suggestion_row,snapshot.ai_mode=="generate" && !snapshot.secure && !snapshot.suggestion_text.empty());
+    const std::string suggestion=(snapshot.suggestion_kind=="correction" ? "校正 · " : snapshot.suggestion_kind=="continuation" ? "续写 · " : "生成中 · ")+snapshot.suggestion_text;
+    gtk_label_set_text(GTK_LABEL(app->suggestion_label),snapshot.secure ? "" : suggestion.c_str());
+    gtk_widget_set_tooltip_text(app->suggestion_label,snapshot.secure ? nullptr : suggestion.c_str());
+    gtk_widget_set_sensitive(app->suggestion_accept,snapshot.suggestion_ready && !snapshot.secure);
+    const auto accept=snapshot.accept_key.empty() ? "采纳" : "采纳 · "+snapshot.accept_key;
+    gtk_button_set_label(GTK_BUTTON(app->suggestion_accept),accept.c_str());
+    const std::string output=snapshot.ai_result.empty() ? snapshot.ai_status : snapshot.ai_result;
+    const auto output_status=snapshot.ai_result.empty() && !snapshot.model_status.empty() ? snapshot.model_status+" · "+output : output;
+    gtk_label_set_text(GTK_LABEL(app->ai_result),snapshot.secure ? "" : output_status.c_str());
+    gtk_widget_set_tooltip_text(app->ai_result,snapshot.secure ? nullptr : output.c_str());
+    gtk_button_set_label(GTK_BUTTON(app->ai_generate),snapshot.ai_mode=="translate" ? "翻译 / 重试" : "生成");
+    gtk_widget_set_sensitive(app->ai_generate,snapshot.capturing && !snapshot.secure && !snapshot.blocks.empty() && !snapshot.ai_busy);
+    gtk_widget_set_sensitive(app->ai_cancel,snapshot.ai_busy && !snapshot.secure);
+    gtk_widget_set_sensitive(app->ai_copy,snapshot.ai_can_copy && !snapshot.secure);
+    if (snapshot.visible && !snapshot.secure) {
         gtk_widget_show_all(app->window);
-        gtk_window_set_keep_above(GTK_WINDOW(app->window), TRUE);
-        if (!app->wayland_layer && !app->placed) {
-            PlaceOnX11(app);
-        }
-    } else if (!app->snapshot.visible) {
-        gtk_widget_hide(app->window);
-        app->placed = false;
-    }
-
+        if (!app->wayland_layer && !app->placed) PlaceOnX11(app);
+    } else { gtk_widget_hide(app->window); app->placed=false; }
     RebuildChips(app);
-    const char* status = app->snapshot.capturing ? "Buffer" : "Paused";
-    if (app->snapshot.secure) {
-        status = "Protected";
-    }
-    gtk_label_set_text(GTK_LABEL(app->status), status);
-    if (app->snapshot.target.empty()) {
-        gtk_label_set_text(GTK_LABEL(app->target), "·");
-    } else {
-        gtk_label_set_text(GTK_LABEL(app->target), app->snapshot.target.c_str());
-    }
-    gtk_widget_set_sensitive(app->send, !app->snapshot.blocks.empty() && app->snapshot.capturing);
-    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress),
-                                  CLAMP(app->snapshot.hold_progress, 0.0, 1.0));
+    gtk_label_set_text(GTK_LABEL(app->status),snapshot.secure ? "Protected" : snapshot.ai_busy ? "处理中…" : snapshot.capturing ? "Buffer" : "Paused");
+    gtk_label_set_text(GTK_LABEL(app->target),snapshot.target.empty() ? "·" : snapshot.target.c_str());
+    gtk_widget_set_sensitive(app->send,!snapshot.secure && (advanced ? snapshot.ai_can_send || snapshot.source_can_send : !snapshot.blocks.empty() && snapshot.capturing));
+    gtk_widget_set_tooltip_text(app->send,advanced ? "发送下一块结果；成功后消费对应原文" : "Send next block");
+    gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress),CLAMP(snapshot.hold_progress,0.0,1.0));
 }
 
 gboolean OnSocket(GIOChannel* /*channel*/, GIOCondition condition, gpointer data) {
@@ -355,11 +290,14 @@ gboolean OnSocket(GIOChannel* /*channel*/, GIOCondition condition, gpointer data
 }
 
 void WriteGeometryDump(App* app) {
+    if (gtk_main_level()==0) return;
     if (app->dump_geometry.empty() || app->dumped_geometry) {
         return;
     }
     GtkAllocation allocation{};
     gtk_widget_get_allocation(app->window, &allocation);
+    const int expected_height=kWindowHeight+(app->snapshot.ai_mode=="default" ? 0 : 40)+(app->snapshot.ai_mode=="generate" && !app->snapshot.suggestion_text.empty() ? 40 : 0);
+    if(allocation.height<expected_height) return;
     if (allocation.width < 2 || allocation.height < 2) {
         gtk_window_get_size(GTK_WINDOW(app->window), &allocation.width, &allocation.height);
     }
@@ -377,7 +315,7 @@ void WriteGeometryDump(App* app) {
                  "{\"width\":%d,\"height\":%d,\"size_request_w\":%d,\"size_request_h\":%d,"
                  "\"layer\":%s,\"min_width\":%d,\"min_height\":%d}\n",
                  allocation.width, allocation.height, request_w, request_h,
-                 app->wayland_layer ? "true" : "false", kWindowWidth, kWindowHeight);
+                 app->wayland_layer ? "true" : "false", kWindowWidth, expected_height);
     std::fclose(file);
     app->dumped_geometry = true;
     if (app->quit_after_dump) {
@@ -547,6 +485,7 @@ window.rimes-buffer { background: transparent; min-width: 760px; min-height: 78p
   margin-right: 3px;
 }
 #rimes-placeholder, #rimes-preedit { color: #9aada0; font-size: 12px; }
+#rimes-ai-result { color: #e8f0ea; font-size: 12px; }
 #rimes-preedit { text-decoration: underline; color: #e8f0ea; }
 button.rimes-action {
   background: #2f463a;
@@ -558,6 +497,7 @@ button.rimes-action {
   padding: 0 6px;
 }
 button.rimes-action:hover { background: #3b5a49; }
+button.rimes-action:checked { background: #436d50; border-color: #7cbc8a; }
 button.rimes-action:disabled { opacity: 0.4; }
 #rimes-progress trough { min-height: 2px; background: #1c2420; }
 #rimes-progress progress { background: #7cbc8a; min-height: 2px; }
@@ -588,7 +528,7 @@ void BuildUi(App* app) {
     gtk_style_context_add_class(gtk_widget_get_style_context(app->window), "rimes-buffer");
     gtk_widget_set_app_paintable(app->window, TRUE);
     gtk_widget_add_events(app->window, GDK_BUTTON_RELEASE_MASK);
-    g_signal_connect(app->window, "destroy", G_CALLBACK(gtk_main_quit), nullptr);
+    g_signal_connect(app->window, "destroy", G_CALLBACK((+[](GtkWidget*, gpointer) { if(gtk_main_level()) gtk_main_quit(); })), nullptr);
     g_signal_connect(app->window, "size-allocate", G_CALLBACK(OnSizeAllocate), app);
     // Button-release is a backup. The WM move-grab usually swallows it;
     // the 50 ms pointer-button poll is the real end signal. Do not treat
@@ -615,9 +555,30 @@ void BuildUi(App* app) {
     gtk_container_add(GTK_CONTAINER(toolbar), toolbar_row);
     gtk_container_set_border_width(GTK_CONTAINER(toolbar_row), 6);
 
-    GtkWidget* title = gtk_label_new("Default");
-    gtk_widget_set_name(title, "rimes-title");
-    gtk_box_pack_start(GTK_BOX(toolbar_row), title, FALSE, FALSE, 0);
+    const char* mode_labels[]={"默认","AI","翻译"};
+    const char* mode_ids[]={"default","generate","translate"};
+    for (int index=0; index<3; ++index) {
+        app->modes[index]=gtk_toggle_button_new_with_label(mode_labels[index]);
+        gtk_widget_set_can_focus(app->modes[index],FALSE);
+        g_object_set_data(G_OBJECT(app->modes[index]),"mode",const_cast<char*>(mode_ids[index]));
+        gtk_style_context_add_class(gtk_widget_get_style_context(app->modes[index]),"rimes-action");
+        g_signal_connect(app->modes[index],"clicked",G_CALLBACK((+[](GtkButton* button,gpointer data) {
+            auto* app=static_cast<App*>(data);
+            if (!app->updating_mode) SendCommand(app,"{\"v\":1,\"op\":\"ai_mode\",\"mode\":"+rimes::buffer::JsonEscape(static_cast<const char*>(g_object_get_data(G_OBJECT(button),"mode")))+"}");
+        })),app);
+        gtk_box_pack_start(GTK_BOX(toolbar_row),app->modes[index],FALSE,FALSE,0);
+    }
+    GtkWidget* settings=gtk_button_new_with_label("设置"); gtk_widget_set_can_focus(settings,FALSE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(settings),"rimes-action");
+    gtk_widget_set_tooltip_text(settings,"配置 AI 服务、指令与翻译目标语言");
+    g_signal_connect(settings,"clicked",G_CALLBACK((+[](GtkButton*,gpointer) {
+        gchar* executable=g_file_read_link("/proc/self/exe",nullptr);
+        if(!executable) return;
+        char* argv[]={executable,const_cast<char*>("--settings"),nullptr};
+        g_spawn_async(nullptr,argv,nullptr,G_SPAWN_DEFAULT,nullptr,nullptr,nullptr,nullptr);
+        g_free(executable);
+    })),nullptr);
+    gtk_box_pack_start(GTK_BOX(toolbar_row),settings,FALSE,FALSE,0);
 
     app->status = gtk_label_new("Buffer");
     gtk_widget_set_name(app->status, "rimes-status");
@@ -634,9 +595,9 @@ void BuildUi(App* app) {
     GtkWidget* close = gtk_button_new_with_label("×");
     gtk_style_context_add_class(gtk_widget_get_style_context(close), "rimes-action");
     gtk_widget_set_tooltip_text(close, "Close and pause (keeps staged blocks)");
-    g_signal_connect(close, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+    g_signal_connect(close, "clicked", G_CALLBACK((+[](GtkButton*, gpointer data) {
                          SendCommand(static_cast<App*>(data), R"({"v":1,"op":"close"})");
-                     }),
+                     })),
                      app);
     gtk_box_pack_end(GTK_BOX(toolbar_row), close, FALSE, FALSE, 0);
 
@@ -666,11 +627,11 @@ void BuildUi(App* app) {
 
     GtkWidget* clipboard = gtk_button_new();
     gtk_button_set_image(GTK_BUTTON(clipboard),
-                         gtk_image_new_from_icon_name("edit-paste", GTK_ICON_SIZE_BUTTON));
+                         gtk_image_new_from_icon_name("edit-paste-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_button_set_always_show_image(GTK_BUTTON(clipboard), TRUE);
     gtk_style_context_add_class(gtk_widget_get_style_context(clipboard), "rimes-action");
     gtk_widget_set_tooltip_text(clipboard, "Import clipboard into Buffer");
-    g_signal_connect(clipboard, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+    g_signal_connect(clipboard, "clicked", G_CALLBACK((+[](GtkButton*, gpointer data) {
                          auto* self = static_cast<App*>(data);
                          GtkClipboard* board = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
                          gchar* text = gtk_clipboard_wait_for_text(board);
@@ -682,21 +643,60 @@ void BuildUi(App* app) {
                                                rimes::buffer::JsonEscape(text) + '}';
                          SendCommand(self, command);
                          g_free(text);
-                     }),
+                     })),
                      app);
     gtk_box_pack_end(GTK_BOX(body), clipboard, FALSE, FALSE, 0);
 
     app->send = gtk_button_new();
     gtk_button_set_image(GTK_BUTTON(app->send),
-                         gtk_image_new_from_icon_name("go-next", GTK_ICON_SIZE_BUTTON));
+                         gtk_image_new_from_icon_name("go-next-symbolic", GTK_ICON_SIZE_BUTTON));
     gtk_button_set_always_show_image(GTK_BUTTON(app->send), TRUE);
     gtk_style_context_add_class(gtk_widget_get_style_context(app->send), "rimes-action");
     gtk_widget_set_tooltip_text(app->send, "Send next block");
-    g_signal_connect(app->send, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
-                         SendCommand(static_cast<App*>(data), R"({"v":1,"op":"send_next"})");
-                     }),
+    g_signal_connect(app->send, "clicked", G_CALLBACK((+[](GtkButton*, gpointer data) {
+                         auto* app=static_cast<App*>(data);
+                         if (app->snapshot.ai_mode=="default" || app->snapshot.source_can_send) SendCommand(app,R"({"v":1,"op":"send_next"})");
+                         else SendCommand(app,"{\"v\":1,\"op\":\"ai_send\",\"result_id\":"+rimes::buffer::JsonEscape(app->snapshot.ai_result_id)+"}");
+                     })),
                      app);
     gtk_box_pack_end(GTK_BOX(body), app->send, FALSE, FALSE, 0);
+
+    app->suggestion_row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);
+    gtk_container_set_border_width(GTK_CONTAINER(app->suggestion_row),6);
+    gtk_box_pack_start(GTK_BOX(chrome),app->suggestion_row,FALSE,FALSE,0);
+    app->suggestion_label=gtk_label_new(""); gtk_label_set_xalign(GTK_LABEL(app->suggestion_label),0);
+    gtk_label_set_single_line_mode(GTK_LABEL(app->suggestion_label),TRUE); gtk_label_set_ellipsize(GTK_LABEL(app->suggestion_label),PANGO_ELLIPSIZE_END);
+    gtk_box_pack_start(GTK_BOX(app->suggestion_row),app->suggestion_label,TRUE,TRUE,0);
+    app->suggestion_accept=gtk_button_new_with_label("采纳 · Tab"); gtk_widget_set_can_focus(app->suggestion_accept,FALSE);
+    gtk_box_pack_start(GTK_BOX(app->suggestion_row),app->suggestion_accept,FALSE,FALSE,0);
+    g_signal_connect(app->suggestion_accept,"clicked",G_CALLBACK((+[](GtkButton*,gpointer data) { auto* app=static_cast<App*>(data); SendCommand(app,"{\"v\":1,\"op\":\"ai_accept\",\"result_id\":"+rimes::buffer::JsonEscape(app->snapshot.suggestion_id)+"}"); })),app);
+    gtk_widget_show_all(app->suggestion_row); gtk_widget_set_no_show_all(app->suggestion_row,TRUE); gtk_widget_hide(app->suggestion_row);
+    app->ai_row=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,8);
+    gtk_container_set_border_width(GTK_CONTAINER(app->ai_row),6);
+    gtk_box_pack_start(GTK_BOX(chrome),app->ai_row,FALSE,FALSE,0);
+    app->ai_result=gtk_label_new("先输入或导入需要处理的文字");
+    gtk_widget_set_name(app->ai_result,"rimes-ai-result");
+    gtk_label_set_xalign(GTK_LABEL(app->ai_result),0);
+    gtk_label_set_single_line_mode(GTK_LABEL(app->ai_result),TRUE);
+    gtk_label_set_ellipsize(GTK_LABEL(app->ai_result),PANGO_ELLIPSIZE_END);
+    gtk_box_pack_start(GTK_BOX(app->ai_row),app->ai_result,TRUE,TRUE,0);
+    app->ai_generate=gtk_button_new_with_label("生成");
+    app->ai_cancel=gtk_button_new_with_label("取消");
+    app->ai_copy=gtk_button_new_with_label("复制结果");
+    for (GtkWidget* button : {app->ai_generate,app->ai_cancel,app->ai_copy}) {
+        gtk_widget_set_can_focus(button,FALSE);
+        gtk_style_context_add_class(gtk_widget_get_style_context(button),"rimes-action");
+        gtk_box_pack_start(GTK_BOX(app->ai_row),button,FALSE,FALSE,0);
+    }
+    g_signal_connect(app->ai_generate,"clicked",G_CALLBACK((+[](GtkButton*,gpointer data) { SendCommand(static_cast<App*>(data),R"({"v":1,"op":"ai_generate"})"); })),app);
+    g_signal_connect(app->ai_cancel,"clicked",G_CALLBACK((+[](GtkButton*,gpointer data) { SendCommand(static_cast<App*>(data),R"({"v":1,"op":"ai_cancel"})"); })),app);
+    g_signal_connect(app->ai_copy,"clicked",G_CALLBACK((+[](GtkButton*,gpointer data) {
+        auto* app=static_cast<App*>(data);
+        SendCommand(app,"{\"v\":1,\"op\":\"ai_copy\",\"result_id\":"+rimes::buffer::JsonEscape(app->snapshot.ai_result_id)+"}");
+    })),app);
+    gtk_widget_show_all(app->ai_row);
+    gtk_widget_set_no_show_all(app->ai_row,TRUE);
+    gtk_widget_hide(app->ai_row);
 
     app->progress = gtk_progress_bar_new();
     gtk_widget_set_name(app->progress, "rimes-progress");
@@ -710,11 +710,20 @@ int main(int argc, char** argv) {
     gtk_init(&argc, &argv);
     std::string socket_path = DefaultSocketPath();
     bool preview = false;
+    bool settings = false;
+    bool preview_ai = false;
+    bool preview_suggestion = false;
     std::string dump_geometry;
     bool quit_after_dump = false;
     for (int index = 1; index < argc; ++index) {
         if (std::strcmp(argv[index], "--socket") == 0 && index + 1 < argc) {
             socket_path = argv[++index];
+        } else if (std::strcmp(argv[index], "--settings") == 0) {
+            settings = true;
+        } else if (std::strcmp(argv[index], "--preview-suggestion") == 0) {
+            preview=true; preview_suggestion=true;
+        } else if (std::strcmp(argv[index], "--preview-ai") == 0) {
+            preview = true; preview_ai = true;
         } else if (std::strcmp(argv[index], "--preview") == 0) {
             preview = true;
         } else if (std::strcmp(argv[index], "--dump-geometry") == 0 && index + 1 < argc) {
@@ -723,6 +732,8 @@ int main(int argc, char** argv) {
             quit_after_dump = true;
         }
     }
+
+    if (settings) return RunAiSettings(preview);
 
     App app;
     g_app = &app;
@@ -741,7 +752,11 @@ int main(int argc, char** argv) {
         demo.origin = rimes::buffer::Origin::Rime;
         app.snapshot.blocks.push_back(demo);
         gtk_widget_show_all(app.window);
-        RebuildChips(&app);
+        if (preview_ai) {
+            app.snapshot.ai_mode="translate"; app.snapshot.ai_result="Hello. This translation is ready to send."; app.snapshot.ai_can_copy=true; app.snapshot.ai_can_send=true;
+        }
+        if(preview_suggestion) { app.snapshot.ai_mode="generate"; app.snapshot.model_status="已预热"; app.snapshot.suggestion_kind="correction"; app.snapshot.suggestion_text="气 → （删除）"; app.snapshot.suggestion_ready=true; app.snapshot.accept_key="Tab"; app.snapshot.source_can_send=true; }
+        ApplySnapshotJson(&app,rimes::buffer::EncodeSnapshot(app.snapshot));
         if (!app.dump_geometry.empty()) {
             g_timeout_add(200, [](gpointer data) -> gboolean {
                 WriteGeometryDump(static_cast<App*>(data));

@@ -1,0 +1,39 @@
+{
+  "id": "builtin.ask",
+  "nameZH": "快问快答",
+  "nameEN": "Quick Q&A",
+  "summaryZH": "快问快答官方插件；用户数据由 RIMES 宿主管理。",
+  "summaryEN": "Quick Q&A official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.1.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "ios": {
+      "legacyID": "ai.ask",
+      "distribution": "download"
+    },
+    "android": {
+      "legacyID": "ask",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate"
+  ],
+  "contribution": {
+    "type": "ai.prompt.v1",
+    "instructions": {
+      "default": "用提问的语言口语回答，2 到 4 句，先给结论，再补关键原因或例子。不要提自己是 AI 或模型。"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

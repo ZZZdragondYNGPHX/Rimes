@@ -16,7 +16,6 @@ Vendor/
 /new-rime.pen
 
 # Promotional video projects and assets are maintained outside this repository.
-/platforms/ios/AppStore/promo-video/
 
 *.log
 
@@ -37,66 +36,19 @@ __pycache__/
 # scripts/input-schemes/scheme_build.py. The catalog in Catalog/input-schemes is committed.
 /build/input-schemes/
 Shared/build/
-platforms/ios/RIMES.xcodeproj/-Xcc/
 
 # Imported from the pinned OfficialPlugins dependency. Edit plugin sources in
 # that repository; scripts/prepare-official-plugins.py preserves local edits.
-/Sources/RimeBuffer/ScholayAcademicPlugins.swift
-/Sources/RimeBuffer/Resources/OfficialPlugins/
 /Shared/Sources/RimesCore/AIPoem.swift
 /Shared/Sources/RimesCore/Chord.swift
 /Shared/Sources/RimesCore/ChordEncoding.swift
 /Shared/Sources/RimesCore/TextArt.swift
-/Sources/RimeBuffer/AppleTranslationPlugin.swift
-/Sources/RimeBuffer/BufferMusicAudio.swift
-/Sources/RimeBuffer/BufferMusicPlugin.swift
-/Sources/RimeBuffer/BufferMusicRhythm.swift
-/Sources/RimeBuffer/BufferMusicSession.swift
-/Sources/RimeBuffer/BufferMusicTheory.swift
-/Sources/RimeBuffer/BufferMusicView.swift
-/Sources/RimeBuffer/BuiltInPlugins.swift
-/Sources/RimeBuffer/CapsuleModules.swift
-/Sources/RimeBuffer/ChordController.swift
-/Sources/RimeBuffer/ChordExtension.swift
-/Sources/RimeBuffer/ChordKeymap.swift
-/Sources/RimeBuffer/ChordKeymapActivation.swift
-/Sources/RimeBuffer/ChordKeymapEditorViewController.swift
-/Sources/RimeBuffer/ChordOutputEncoding.swift
-/Sources/RimeBuffer/DailyInputMetrics.swift
-/Sources/RimeBuffer/FlyChordLearning.swift
-/Sources/RimeBuffer/FlyChordLearningSettingsViewController.swift
-/Sources/RimeBuffer/KeyFrequencyStore.swift
-/Sources/RimeBuffer/KeyboardHeatmapView.swift
-/Sources/RimeBuffer/Mailbox/MailboxModules.swift
-/Sources/RimeBuffer/MorseCode.swift
-/Sources/RimeBuffer/MorseInputBarView.swift
-/Sources/RimeBuffer/MorseSidetone.swift
-/Sources/RimeBuffer/MorseWorkspace.swift
-/Sources/RimeBuffer/NativeChordScheme.swift
-/Sources/RimeBuffer/OfficialAIWorkspace.swift
-/Sources/RimeBuffer/ScholayPlugin.swift
-/Sources/RimeBuffer/StatisticsSettingsViewController.swift
-/Sources/RimeBuffer/StreamInputInferenceEngine.swift
-/Sources/RimeBuffer/StreamInputPinyinHints.swift
-/Sources/RimeBuffer/StreamInputPlugin.swift
-/Sources/RimeBuffer/Translation/AppleTranslationSessionBridge.swift
-/Sources/RimeBuffer/TypingSpeedSettingsViewController.swift
-/Sources/RimeBuffer/TypingSpeedStore.swift
-/Sources/RimeBuffer/TypingTestArticles.swift
-/Sources/RimeBuffer/TypingTestHistoryStore.swift
-/Sources/RimeBuffer/TypingTestSession.swift
-/Sources/RimeBuffer/TypingTestTextView.swift
-/Sources/RimeBuffer/YearHistoryHeatmapView.swift
 /platforms/android/app/src/main/java/org/scholay/rimes/android/BufferPluginExecutor.java
 /platforms/android/app/src/main/java/org/scholay/rimes/android/BufferPluginPanel.java
 /platforms/android/app/src/main/java/org/scholay/rimes/android/ChordPreview.java
 /platforms/android/app/src/main/java/org/scholay/rimes/android/ChordSurface.java
 /platforms/android/app/src/main/java/org/scholay/rimes/android/OfflineDictionary.java
 /platforms/android/app/src/main/java/org/scholay/rimes/android/OpenAiChatCodec.java
-/platforms/ios/Support/BufferPlugins.swift
-/Sources/RimeBuffer/Resources/Music/AVL-README.txt
-/Sources/RimeBuffer/Resources/Music/Black_Pearl_4_LV2.sf2
-/Sources/RimeBuffer/Resources/Music/provenance.json
 /Shared/Sources/RimesCore/Resources/OfficialPlugins/
 /platforms/android/app/src/main/assets/official-plugins/
 /platforms/windows/native/resources/official-plugin-catalog.json
@@ -109,3 +61,11 @@ platforms/ios/RIMES.xcodeproj/-Xcc/
 /platforms/windows/native/src/workbench/official_features.hpp
 /platforms/windows/native/src/workbench/official_plugin_catalog.generated.hpp
 /platforms/windows/native/resources/my_combo.schema.yaml
+
+# Native Linux build and package output
+/build/
+/platforms/linux/ime/build/
+/platforms/linux/ime/dist/
+/platforms/linux/ime/packaging/arch/src/
+/platforms/linux/ime/packaging/arch/pkg/
+*.pkg.tar.zst

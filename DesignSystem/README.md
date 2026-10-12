@@ -1,3 +1,5 @@
+> 本分支的历史设计参考；Linux 运行时使用 Fcitx5 / GTK3。这里展示的高级设置和插件不代表已完成 Linux 移植。
+
 # RIMES Design System
 
 RIMES Design System 是 `design/react-system` 分支中的交互式 React 设计母版。它把原生输入法中最需要反复调整的五类界面放在同一个可操作画布里：

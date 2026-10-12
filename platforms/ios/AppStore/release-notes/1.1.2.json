@@ -1,5 +1,0 @@
-{
-  "en-US": "• Compatible imported full-Pinyin schemes, including the updated Wanxiang package, can switch between 26-key and native nine-key layouts. Candidate selection, spelling selection and Buffer continue to use the imported scheme.\n• Improved keyboard startup and height recovery when the host temporarily provides extra space.\n• Keyboard layout menus now show the layout actually in use. Existing chord mappings and learned data are retained.",
-  "zh-Hans": "• 支持万象等兼容导入全拼方案切换 26 键和原生九键，候选、选拼音和 Buffer 继续使用导入方案。\n• 改善键盘首次展示及宿主尺寸滞后时的空白占位和高度恢复。\n• 布局菜单显示实际使用的布局，保留原有并击映射和学习数据。",
-  "zh-Hant": "• 支援萬象等相容匯入全拼方案切換 26 鍵和原生九鍵，候選、選拼音和 Buffer 繼續使用匯入方案。\n• 改善鍵盤首次顯示及宿主尺寸延遲時的空白佔位和高度恢復。\n• 版面選單顯示實際使用的版面，保留原有並擊映射和學習資料。"
-}

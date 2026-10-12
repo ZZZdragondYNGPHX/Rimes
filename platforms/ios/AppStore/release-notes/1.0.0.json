@@ -1,5 +1,0 @@
-{
-  "en-US": "RIMES brings offline Pinyin, nine-key Pinyin, Ziranma double Pinyin, Wubi 86 and English input, two-thumb slide chords, and an editable Buffer. Customize keyboard appearance and layouts, import supported Rime schemes, and manage your input data. Optional AI uses your own HTTPS provider, model and API key; only Buffer text you explicitly submit is sent after consent. Ordinary typing works offline without Full Access or an account.",
-  "zh-Hans": "RIMES 支持离线拼音、九宫格拼音、自然码双拼、五笔 86、英文、双拇指滑动并击及可编辑 Buffer。可自定义键盘外观与布局，导入受支持的 Rime 方案并管理输入数据。可选 AI 使用你自行配置的 HTTPS 服务、模型和密钥，经授权后仅发送你主动提交的 Buffer 文本。普通输入离线可用，无需完全访问或账号。",
-  "zh-Hant": "RIMES 支援離線拼音、九宮格拼音、自然碼雙拼、五筆 86、英文、雙拇指滑動並擊及可編輯 Buffer。可自訂鍵盤外觀與佈局，匯入受支援的 Rime 方案並管理輸入資料。可選 AI 使用你自行設定的 HTTPS 服務、模型和金鑰，經授權後僅傳送你主動提交的 Buffer 文字。一般輸入可離線使用，無需完全取用或帳號。"
-}

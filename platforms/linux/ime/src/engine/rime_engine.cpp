@@ -79,7 +79,7 @@ public:
             traits.user_data_dir = user_data_dir_.c_str();
             traits.distribution_name = "RIMES";
             traits.distribution_code_name = "rimes";
-            traits.distribution_version = "0.1.0";
+            traits.distribution_version = "0.3.0";
             traits.app_name = "rime.rimes.linux";
             traits.min_log_level = 2;
             traits.log_dir = log_dir_.c_str();

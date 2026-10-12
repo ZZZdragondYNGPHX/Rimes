@@ -3,8 +3,9 @@
 This is the acceptance baseline for the Linux Default Buffer. It is derived
 from macOS `BufferModel`, `RimeBufferController.drainCommit`,
 `BufferDeliveryCoordinator`, and `.codex/skills/rimebuffer-project/references/buffer-ui.md`.
-Linux implements the **Default** workbench only. AI / translation / stream /
-music plugins and Mailbox are out of scope. Capsule is a sibling component
+Linux implements Default, AI generation and live translation. The AI/translation
+acceptance supplement is [AI.md](AI.md). Stream/music plugins and Mailbox
+remain later work. Capsule is a sibling component
 documented in `platforms/linux/capsule/SPEC.md`.
 
 The macOS hunch is confirmed: `RimesIme::commitText` is the single Fcitx5

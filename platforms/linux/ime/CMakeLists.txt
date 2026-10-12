@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(RIMESLinuxIme VERSION 0.1.0 LANGUAGES C CXX)
+project(RIMESLinuxIme VERSION 0.3.0 LANGUAGES C CXX)
 
 option(RIMES_BUILD_FCITX5 "Build the Fcitx5 RIMES addon" ON)
 option(RIMES_BUILD_TESTS "Build unit tests and headless E2E hosts" ON)
-option(RIMES_BUILD_QT_HOST "Build the Qt E2E host when Qt5 is available" ON)
+option(RIMES_BUILD_QT_HOST "Build the Qt E2E host when Qt6 or Qt5 is available" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,7 +16,10 @@ include(CTest)
 
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
+find_package(Fcitx5Utils REQUIRED)
 pkg_check_modules(Rime REQUIRED IMPORTED_TARGET rime>=1.7.0)
+pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl>=7.85.0)
+pkg_check_modules(JSONCPP REQUIRED IMPORTED_TARGET jsoncpp)
 
 set(RIMES_BUFFER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../buffer")
 set(RIMES_CAPSULE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../capsule")
@@ -30,6 +33,23 @@ function(rimes_harden target)
         -Wno-missing-field-initializers
     )
 endfunction()
+
+add_library(RimesAi STATIC
+    "${RIMES_BUFFER_ROOT}/ai/ai_workspace.cpp"
+    "${RIMES_BUFFER_ROOT}/ai/ai_provider.cpp"
+    "${RIMES_BUFFER_ROOT}/ai/ai_suggestion.cpp"
+    "${RIMES_BUFFER_ROOT}/ai/ai_shortcut.cpp"
+    "${RIMES_BUFFER_ROOT}/ai/local_runtime.cpp"
+)
+target_include_directories(RimesAi PUBLIC "${RIMES_BUFFER_ROOT}/ai" "${RIMES_BUFFER_ROOT}/core")
+target_link_libraries(RimesAi PUBLIC PkgConfig::CURL PkgConfig::JSONCPP Threads::Threads Fcitx5::Utils)
+set_target_properties(RimesAi PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_features(RimesAi PUBLIC cxx_std_20)
+rimes_harden(RimesAi)
+target_compile_definitions(RimesAi PRIVATE RIMES_MODEL_HOST_PATH="${CMAKE_INSTALL_FULL_LIBEXECDIR}/rimes/rimes-model-host")
+add_executable(rimes-model-host "${RIMES_BUFFER_ROOT}/ai/model_host.cpp")
+rimes_harden(rimes-model-host)
+install(TARGETS rimes-model-host DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/rimes")
 
 add_library(RimesBufferCore STATIC
     "${RIMES_BUFFER_ROOT}/core/buffer_ids.cpp"
@@ -78,7 +98,9 @@ rimes_harden(RimesEngine)
 if(RIMES_BUILD_FCITX5)
     find_package(Gettext REQUIRED)
     find_package(Fcitx5Core REQUIRED)
-    find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend)
+    if(RIMES_BUILD_TESTS)
+        find_package(Fcitx5Module REQUIRED COMPONENTS TestFrontend)
+    endif()
     include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5CompilerSettings.cmake")
 
     add_library(rimes MODULE
@@ -88,9 +110,11 @@ if(RIMES_BUILD_FCITX5)
         src/buffer/buffer_service.cpp
         src/capsule/capsule_service.cpp
     )
-    target_link_libraries(rimes PRIVATE Fcitx5::Core RimesEngine RimesBufferCore RimesCapsuleCore)
+    target_link_libraries(rimes PRIVATE Fcitx5::Core RimesEngine RimesBufferCore RimesCapsuleCore RimesAi)
     target_compile_definitions(rimes PRIVATE
         RIMES_INSTALL_SHARED_DIR="${CMAKE_INSTALL_FULL_DATADIR}/rimes/data"
+        RIMES_BUFFER_UI_PATH="${CMAKE_INSTALL_FULL_LIBEXECDIR}/rimes/rimes-buffer"
+        RIMES_CAPSULE_UI_PATH="${CMAKE_INSTALL_FULL_LIBEXECDIR}/rimes/rimes-capsule"
     )
     set_target_properties(rimes PROPERTIES
         PREFIX ""
@@ -132,9 +156,10 @@ if(RIMES_BUILD_FCITX5)
         pkg_check_modules(GTK_LAYER_SHELL gtk-layer-shell-0)
         add_executable(rimes-buffer
             "${RIMES_BUFFER_ROOT}/ui/rimes_buffer_app.cpp"
+            "${RIMES_BUFFER_ROOT}/ui/ai_settings.cpp"
         )
         target_include_directories(rimes-buffer PRIVATE ${GTK3_INCLUDE_DIRS})
-        target_link_libraries(rimes-buffer PRIVATE RimesBufferCore ${GTK3_LIBRARIES})
+        target_link_libraries(rimes-buffer PRIVATE RimesBufferCore RimesAi ${GTK3_LIBRARIES})
         target_compile_options(rimes-buffer PRIVATE ${GTK3_CFLAGS_OTHER})
         if(GTK_LAYER_SHELL_FOUND)
             target_include_directories(rimes-buffer PRIVATE ${GTK_LAYER_SHELL_INCLUDE_DIRS})
@@ -148,6 +173,7 @@ if(RIMES_BUILD_FCITX5)
         )
         install(TARGETS rimes-buffer DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}/rimes")
         install(TARGETS rimes-buffer DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        install(FILES data/rimes-ai-settings.desktop DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 
         add_executable(rimes-capsule
             "${RIMES_CAPSULE_ROOT}/ui/rimes_capsule_app.cpp"
@@ -191,6 +217,13 @@ if(RIMES_BUILD_FCITX5)
 endif()
 
 if(RIMES_BUILD_TESTS)
+    add_executable(rimes-ai-real-benchmark tests/ai_real_benchmark.cpp)
+    target_link_libraries(rimes-ai-real-benchmark PRIVATE RimesAi RimesBufferCore)
+    rimes_harden(rimes-ai-real-benchmark)
+    add_executable(rimes-ai-tests "${RIMES_BUFFER_ROOT}/tests/ai_tests.cpp")
+    target_link_libraries(rimes-ai-tests PRIVATE RimesAi RimesBufferCore)
+    rimes_harden(rimes-ai-tests)
+    add_test(NAME RimesAI COMMAND rimes-ai-tests)
     add_executable(rimes-key-tests tests/rime_key_tests.cpp)
     target_link_libraries(rimes-key-tests PRIVATE RimesEngine)
     rimes_harden(rimes-key-tests)
@@ -296,10 +329,11 @@ if(RIMES_BUILD_TESTS)
     endif()
 
     if(RIMES_BUILD_QT_HOST)
-        find_package(Qt5 QUIET COMPONENTS Widgets)
-        if(Qt5Widgets_FOUND)
+        find_package(QT NAMES Qt6 Qt5 QUIET COMPONENTS Widgets)
+        if(QT_FOUND)
+            find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
             add_executable(rimes-qt-host tests/e2e/qt_host.cpp)
-            target_link_libraries(rimes-qt-host PRIVATE Qt5::Widgets)
+            target_link_libraries(rimes-qt-host PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
             set_target_properties(rimes-qt-host PROPERTIES
                 AUTOMOC OFF
             )
@@ -307,6 +341,12 @@ if(RIMES_BUILD_TESTS)
     endif()
 
     if(RIMES_BUILD_FCITX5)
+        add_executable(rimes-ai-real-fcitx tests/ai_real_fcitx.cpp)
+        target_link_libraries(rimes-ai-real-fcitx PRIVATE Fcitx5::Core Fcitx5::Module::TestFrontend RimesBufferCore RimesAi)
+        rimes_harden(rimes-ai-real-fcitx)
+        add_executable(rimes-ai-fcitx-e2e tests/ai_fcitx_e2e.cpp)
+        target_link_libraries(rimes-ai-fcitx-e2e PRIVATE Fcitx5::Core Fcitx5::Module::TestFrontend RimesBufferCore RimesAi)
+        rimes_harden(rimes-ai-fcitx-e2e)
         add_executable(rimes-fcitx-e2e tests/fcitx_e2e.cpp)
         target_link_libraries(rimes-fcitx-e2e PRIVATE
             Fcitx5::Core

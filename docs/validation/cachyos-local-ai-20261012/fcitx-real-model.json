@@ -1,0 +1,17 @@
+{
+  "cached_after_exit": true,
+  "commitString_verified": true,
+  "complete_suggestion_snapshot_ms": 532.7416,
+  "first_suggestion_snapshot_ms": 456.279032,
+  "idle_process_gone_ms": 1059.744652,
+  "ordinary_no_process": true,
+  "preload_ready_snapshot_ms": 914.943508,
+  "real_correction_accepted": true,
+  "rime_key_during_preload_ms": 14.018978,
+  "sentence_pause_ms": 0,
+  "shared_generation_process": true,
+  "threads": 4,
+  "warm_complete_snapshot_from_trigger_ms": 335.438031,
+  "warm_first_snapshot_from_trigger_ms": 268.354202,
+  "warm_pause_observed_ms": 256.269667
+}

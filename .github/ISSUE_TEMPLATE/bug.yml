@@ -16,17 +16,17 @@ body:
     validations:
       required: true
   - type: input
-    id: macos
+    id: linux
     attributes:
-      label: macOS 与硬件
-      placeholder: 例如 macOS 15.6 / Apple Silicon
+      label: Linux、桌面与硬件
+      placeholder: 例如 CachyOS / KDE Plasma / Wayland / x86_64
     validations:
       required: true
   - type: input
     id: host
     attributes:
       label: 宿主应用与版本
-      placeholder: 例如 Codex、Notes、Obsidian、Chrome
+      placeholder: 例如 Kate、Konsole、Firefox、Chrome
     validations:
       required: true
   - type: input
@@ -40,14 +40,14 @@ body:
     id: buffer
     attributes:
       label: Buffer / 剪贴板状态
-      placeholder: Buffer 开启；实时翻译；剪贴板历史关闭
+      placeholder: Buffer 开启；Capsule Markdown 笔记
     validations:
       required: true
   - type: input
     id: display
     attributes:
-      label: Spaces、全屏与显示器
-      placeholder: 单屏/双屏，是否跨 Space 或全屏
+      label: 虚拟桌面、全屏与显示器
+      placeholder: 单屏/双屏，是否跨虚拟桌面或全屏
     validations:
       required: true
   - type: textarea

@@ -13,7 +13,7 @@ for name,digest in receipt['inputs'].items():
 data=assets/'rime'
 manifest=json.loads((data/'manifest.json').read_text())
 assert manifest['format']==1
-lock=json.loads((ROOT.parent/'ios/dependencies.lock.json').read_text())
+lock=json.loads((ROOT.parents[1]/'Shared/Engine/dependencies.lock.json').read_text())
 assert manifest['librime']==lock['librime']['commit']
 for name,digest in manifest['files'].items():
     assert '..' not in name and not name.startswith('/')
@@ -43,7 +43,7 @@ assert generated==[(m['keys'],m['output'],m['kind']) for m in profile['mappings'
 assert len(generated)==427 and profile['leftKeys']=='qwertasdfgzxcvb' and profile['rightKeys']=='yuiophjklnm,.'
 for license in ('librime-BSD.txt','Boost-1.0.txt','leveldb-LICENSE.txt','marisa-trie-COPYING.md.txt',
                 'yaml-cpp-LICENSE.txt','opencc-LICENSE.txt','wubi86-LGPL-3.0.txt','pinyin_simp-APACHE-2.0.txt'):
-    assert (assets/'licenses'/license).read_bytes()==(ROOT.parent/'ios/Licenses'/license).read_bytes(),license
+    assert (assets/'licenses'/license).read_bytes()==(ROOT.parents[1]/'Shared/Engine/licenses'/license).read_bytes(),license
 assert (assets/'licenses/RIMES-Apache-2.0.txt').read_bytes()==(ROOT.parents[1]/'LICENSE').read_bytes(), 'RIMES Apache license'
 for source,name in [('NOTICE','RIMES-NOTICE.txt'),('OfficialPlugins/NOTICE','RIMES-Plugins-NOTICE.txt')]:
     assert (assets/'licenses'/name).read_bytes()==(ROOT.parents[1]/source).read_bytes(),name

@@ -220,26 +220,41 @@ class ArchiveTests(unittest.TestCase):
 
 
 class VerificationTests(unittest.TestCase):
-    def test_matching_candidate_cannot_hide_lua_error_or_failed_process(self):
-        for error, returncode in (("Lua failure", 0), ("", 1)):
-            with self.subTest(error=error, returncode=returncode), tempfile.TemporaryDirectory() as folder:
-                root = Path(folder)
-                review = {"fatal": None, "schemes": [{"id": "demo", "blocking": []}],
-                          "staged": {"root": str(root), "selected": ["demo"], "deployment": ["demo"]}}
-                replies = [
-                    subprocess.CompletedProcess([], 0, json.dumps(review), ""),
-                    subprocess.CompletedProcess([], 0, '{"target":"demo","ok":true,"compiled":true}', ""),
-                    subprocess.CompletedProcess([], 0, '{"target":"demo","ok":true}', ""),
-                    subprocess.CompletedProcess([], returncode, json.dumps({"ok": True, "candidates": ["你好"], "luaError": error}), ""),
-                ]
-                with patch.object(build, "run", side_effect=replies):
-                    result = build.verify_one(
-                        {"archive": "demo.zip", "recommended": ["demo"]},
-                        {"probes": [{"schema": "demo", "keys": "nihao", "expect": "你好"}]},
-                        Path("harness"), Path("probe"), root, 30,
-                    )
-                self.assertFalse(result["passed"])
-                self.assertFalse(result["probes"][0]["passed"])
+    def test_data_verification_does_not_claim_native_typing(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "reports").mkdir()
+            (root / "packages").mkdir()
+            report_path = root / "reports/demo.json"
+            report_path.write_text(json.dumps({"archive": "demo.zip", "recommended": ["demo"]}))
+            build.write_zip(root / "packages/demo.zip", {
+                "demo.schema.yaml": b"schema: {schema_id: demo, name: Demo}\n",
+            })
+            args = argparse.Namespace(output=root, only=["demo"], missing=False)
+            with patch.object(build, "load_sources", return_value={}), patch.object(
+                build, "selected_entries", return_value=[{"id": "demo"}]
+            ):
+                self.assertEqual(build.command_verify(args), 0)
+            result = json.loads(report_path.read_text())["verification"]
+            self.assertTrue(result["passed"])
+            self.assertIsNone(result["deploy"])
+            self.assertEqual(result["kind"], "python-data-contract")
+
+    def test_invalid_archive_returns_failure(self):
+        import argparse
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "reports").mkdir()
+            (root / "packages").mkdir()
+            (root / "reports/demo.json").write_text(json.dumps({"archive": "demo.zip", "recommended": ["demo"]}))
+            (root / "packages/demo.zip").write_bytes(b"invalid zip")
+            args = argparse.Namespace(output=root, only=["demo"], missing=False)
+            with patch.object(build, "load_sources", return_value={}), patch.object(
+                build, "selected_entries", return_value=[{"id": "demo"}]
+            ):
+                self.assertEqual(build.command_verify(args), 1)
+
 
 
 if __name__ == "__main__":

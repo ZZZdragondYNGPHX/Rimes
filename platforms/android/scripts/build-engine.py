@@ -4,12 +4,12 @@ import argparse, hashlib, json, os, pathlib, platform, shutil, subprocess, tarfi
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 ANDROID = ROOT / 'platforms/android'
 WORK = ANDROID / '.native'
-LOCK = json.loads((ROOT / 'platforms/ios/dependencies.lock.json').read_text())
+LOCK = json.loads((ROOT / 'Shared/Engine/dependencies.lock.json').read_text())
 NDK = '29.0.14206865'
 CMAKE = '3.22.1'
 SCHEMAS = ('rimes_pinyin', 'rimes_pinyin9', 'rimes_ziranma', 'rimes_wubi')
 def schema_source(name):
-    root = ANDROID/'resources' if name == 'rimes_pinyin9' else ROOT/'platforms/ios/Resources/EngineData'
+    root = ANDROID/'resources' if name == 'rimes_pinyin9' else ROOT/'Shared/Engine/data'
     return root/(name+'.schema.yaml')
 def run(*args, **kw):
     subprocess.run([str(a) for a in args], check=True, **kw)
@@ -100,7 +100,7 @@ def prepare_data():
     stage = WORK/'data-stage'
     if stage.exists(): shutil.rmtree(stage)
     stage.mkdir()
-    resources = ROOT/'platforms/ios/Resources/EngineData'
+    resources = ROOT/'Shared/Engine/data'
     default = (resources/'default.yaml').read_text()
     if 'schema: rimes_pinyin9' not in default:
         default = default.replace('  - schema: rimes_pinyin\n', '  - schema: rimes_pinyin\n  - schema: rimes_pinyin9\n')
@@ -137,7 +137,7 @@ def prepare_data():
     shutil.copy2(ANDROID/'resources/chord-profile.json',dest/'chord-profile.json')
     # Runtime only needs compiled data. Source dictionaries remain pinned build inputs.
     licenses = ANDROID/'app/build/generated/rime/assets/licenses'
-    shutil.copytree(ROOT/'platforms/ios/Licenses', licenses, dirs_exist_ok=True)
+    shutil.copytree(ROOT/'Shared/Engine/licenses', licenses, dirs_exist_ok=True)
     shutil.copy2(ROOT/'LICENSE',licenses/'RIMES-Apache-2.0.txt')
     shutil.copy2(ROOT/'NOTICE',licenses/'RIMES-NOTICE.txt')
     shutil.copy2(ROOT/'OfficialPlugins/NOTICE',licenses/'RIMES-Plugins-NOTICE.txt')
@@ -158,14 +158,14 @@ if __name__ == '__main__':
     prepare_data()
     for abi in args.abis: build(source,abi,sdk)
     # Keep Gradle from accidentally packaging libraries built from older native inputs.
-    inputs = [pathlib.Path(__file__).resolve(), ROOT/'LICENSE', ROOT/'NOTICE', ROOT/'OfficialPlugins/NOTICE', ROOT/'platforms/ios/dependencies.lock.json']
+    inputs = [pathlib.Path(__file__).resolve(), ROOT/'LICENSE', ROOT/'NOTICE', ROOT/'OfficialPlugins/NOTICE', ROOT/'Shared/Engine/dependencies.lock.json']
     inputs += list((ANDROID/'native').glob('*'))
     inputs += [schema_source(name) for name in SCHEMAS]
     inputs += [ANDROID/'resources/nine-key-syllables.json',ANDROID/'resources/chord-profile.json',
                ANDROID/'resources/rimes_android_supplement.dict.yaml',
                ANDROID/'core/src/main/java/org/scholay/rimes/core/ChordData.java']
-    inputs += [ROOT/'platforms/ios/Resources/EngineData/default.yaml']
-    inputs += list((ROOT/'platforms/ios/Licenses').glob('*'))
+    inputs += [ROOT/'Shared/Engine/data/default.yaml']
+    inputs += list((ROOT/'Shared/Engine/licenses').glob('*'))
     receipt = {'inputs':{str(p.relative_to(ROOT)):sha(p) for p in sorted(inputs) if p.is_file()},
                'libraries':{abi:sha(ANDROID/'app/build/generated/rime/jniLibs'/abi/'librimes_jni.so') for abi in args.abis},
                'ndk':NDK,'cmake':CMAKE}

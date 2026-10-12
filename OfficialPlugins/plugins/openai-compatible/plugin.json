@@ -1,0 +1,39 @@
+{
+  "id": "builtin.openai-compatible",
+  "nameZH": "AI API",
+  "nameEN": "AI API",
+  "summaryZH": "把源缓冲区原样作为请求发给通用 Open API（OpenAI 兼容），回复进入独立目标缓冲区。",
+  "summaryEN": "AI API official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.0.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.openai-compatible",
+      "distribution": "download"
+    },
+    "windows": {
+      "legacyID": "ai",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate"
+  ],
+  "contribution": {
+    "type": "ai.channel.v1",
+    "options": {
+      "channel": "openai-compatible"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

@@ -42,7 +42,7 @@ Section: utils
 Priority: optional
 Architecture: $ARCH
 Installed-Size: $SIZE
-Depends: fcitx5, librime1t64 | librime1, librime-plugin-lua, libopencc1.1 | libopencc1, libgtk-3-0
+Depends: fcitx5, librime1t64 | librime1, librime-plugin-lua, libopencc1.1 | libopencc1, libgtk-3-0, libcurl4t64 | libcurl4, libjsoncpp25
 Recommends: libgtk-layer-shell0, wl-clipboard
 Maintainer: RIMES contributors <https://github.com/scholay/rimes>
 Description: RIMES input method frontend for Fcitx 5

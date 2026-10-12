@@ -1,54 +1,16 @@
-# Contributing to RIMES
+# 贡献
 
-感谢你帮助改进 RIMES。提交代码前，请先在最新 `main` 上复现问题，并确认没有把用户输入正文、
-API 密钥、剪贴板内容或本机路径放进 Issue、日志和测试夹具。
-
-统一分支、各平台独立构建和发布的日常约定见 [MAINTENANCE.md](MAINTENANCE.md)。
-本地整合可以领先 `origin/main`；没有明确授权时，不推送、不创建发布 tag、不安装。
-
-## 报告问题
-
-- Bug 请使用 GitHub 的 Bug 表单，写清 macOS、RIMES 版本/commit、宿主应用、输入方案、
-  Buffer/剪贴板状态、Spaces/显示器环境和最短复现步骤。
-- 输入法行为必须区分“源码 smoke 通过”和“安装后的真实宿主验证”。候选窗、焦点、secure input、
-  输入源切换和跨 Space 问题不能只凭单元测试宣布解决。
-- 附日志前先脱敏。RIMES 的日志不得包含输入正文、候选正文、剪贴板内容、token 或密钥。
-
-## 开发与验证
+主要开发环境是 CachyOS / KDE Plasma / Wayland。先阅读 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ```bash
-swift build -c debug
-python3 -B scripts/sync-buffer-plugin-catalog.py --check
-python3 scripts/lint-log-privacy.py
+platforms/linux/ime/scripts/build.sh
+ctest --test-dir platforms/linux/ime/build --output-on-failure
 ```
 
-按改动范围运行对应 smoke；Buffer 与焦点改动至少运行：
+每阶段及任务完成时，只在本地执行最小相关验证。输入与焦点变更按需运行隔离的
+Fcitx5 testfrontend；真实 KDE/Qt/GTK 宿主验收单独记录。不自动发布、推送或运行远端检查。
 
-```bash
-BIN="$(swift build --show-bin-path)/RimeBuffer"
-"$BIN" schema-smoke
-"$BIN" buffer-smoke
-"$BIN" buffer-window-smoke
-"$BIN" clipboard-history-smoke
-"$BIN" settings-routing-smoke
-```
+投递使用 Fcitx5 `commitString`，每个上下文独立会话；更新保留用户词库与持久笔记。
+Android/Windows 为后续目标，不为 Linux 变更执行整个平台构建。
 
-设计系统改动在 `DesignSystem/` 运行 `npm run check`。Windows/Linux 数据预览改动运行：
-
-```bash
-python3 -m unittest discover -s scripts/platform-preview -p 'test_*.py'
-```
-
-## Pull Request
-
-- 一个 PR 聚焦一个可审查的目标；说明风险、验证证据和仍未验证的真实宿主场景。
-- 不要修改冻结的输入源身份、当前 `RIMES.app` 安装路径或 `Delivery.insert` 投递边界，除非同时提供
-  明确迁移方案和回归矩阵。
-- 新增/更新预置 Buffer 插件时，同步 `Catalog/buffer-plugins.json`、生成文件和 README 版本表。
-- 不要从 fork、旧 tag 或本地重打包直接发布 Release。
-
-## 贡献归属
-
-人类维护者负责最终审查、合并和发布。AI 编码智能体实质参与设计、实现、测试或审查时，按
-[`CONTRIBUTORS.md`](CONTRIBUTORS.md) 的规则使用已验证的公开身份添加 `Co-authored-by` trailer；
-不要虚构身份，也不要仅为补署名改写已发布历史。
+AI 实质参与的提交按 [CONTRIBUTORS.md](CONTRIBUTORS.md) 添加已验证的 `Co-authored-by`。

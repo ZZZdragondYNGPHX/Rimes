@@ -1,0 +1,39 @@
+{
+  "id": "builtin.art",
+  "nameZH": "字符画",
+  "nameEN": "Text art",
+  "summaryZH": "字符画官方插件；用户数据由 RIMES 宿主管理。",
+  "summaryEN": "Text art official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.1.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "ios": {
+      "legacyID": "ai.art",
+      "distribution": "download"
+    },
+    "android": {
+      "legacyID": "art",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate"
+  ],
+  "contribution": {
+    "type": "ai.prompt.v1",
+    "instructions": {
+      "default": "把提供的描述转换成纯文本字符画。只输出可复制的文字，不声称生成图片。"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

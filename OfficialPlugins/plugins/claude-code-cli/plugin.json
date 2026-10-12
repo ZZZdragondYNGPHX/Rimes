@@ -1,0 +1,35 @@
+{
+  "id": "builtin.claude-code-cli",
+  "nameZH": "Claude",
+  "nameEN": "Claude",
+  "summaryZH": "通过 Claude Code CLI 使用 Claude 生成内容，可选择模型与推理深度。",
+  "summaryEN": "Claude official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.1.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.claude-code-cli",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate"
+  ],
+  "contribution": {
+    "type": "ai.channel.v1",
+    "options": {
+      "channel": "claude-code-cli"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

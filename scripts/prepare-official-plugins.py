@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Import pinned official plugin sources without overwriting local edits.
 
-Run `git submodule update --init OfficialPlugins` first. Maintainers update the
-gitlink and use --update-lock after reviewing a new plugin commit. Generated
+OfficialPlugins is a reviewed non-Apple source snapshot with UPSTREAM.json.
+Generated
 files stay at the native build paths so private host types never become a
 downloadable ABI. Runtime packages contain data, not these native sources.
 """
@@ -63,7 +63,7 @@ def prepare(root, source, update_lock=False):
     lock_path = root / "plugins.lock.json"
     receipt_path = root / ".build/official-plugin-imports.json"
     if not (source / "source-map.json").is_file():
-        raise ValueError("Initialize the pinned dependency: git submodule update --init OfficialPlugins")
+        raise ValueError("Missing reviewed OfficialPlugins snapshot")
     source_map = json.loads((source / "source-map.json").read_bytes())
     if source_map.get("schemaVersion") != 1:
         raise ValueError("Unsupported plugin source map")
@@ -71,6 +71,8 @@ def prepare(root, source, update_lock=False):
     input_names = {"VERSION", "source-map.json", "LICENSE", "NOTICE", "LICENSES/MIT-legacy.txt", "THIRD_PARTY_NOTICES.md"}
     for entry in source_map["files"]:
         origin, destination = entry["source"], entry["destination"]
+        if origin.startswith(("native/macos/", "native/ios/")) or destination.startswith(("Sources/", "platforms/ios/")):
+            raise ValueError("Apple native imports are not supported in this Linux fork")
         if not origin.startswith("native/") or not destination.startswith(("Sources/", "Shared/Sources/", "platforms/")):
             raise ValueError("Plugin import is outside an allowed native source directory")
         if destination in imports:
@@ -93,12 +95,6 @@ def prepare(root, source, update_lock=False):
         imports[f"Shared/Sources/RimesCore/Resources/OfficialPlugins/{asset}"] = data
         if "android" in package["platforms"]:
             imports[f"platforms/android/app/src/main/assets/official-plugins/{asset}"] = data
-        # Compatibility contents let an existing user retain installed plugins
-        # offline after migration. Fresh profiles still require an install receipt.
-        if "macos" in package["platforms"]:
-            destination = f"Sources/RimeBuffer/Resources/OfficialPlugins/{package['id']}.json"
-            safe_path(root, destination)
-            imports[destination] = canonical(package)
     if packages:
         catalog = {"schemaVersion": 1, "releaseVersion": release_version, "plugins": packages}
         imports["Shared/Sources/RimesCore/Resources/OfficialPlugins/catalog.json"] = canonical(catalog)
@@ -118,9 +114,15 @@ def prepare(root, source, update_lock=False):
             header += '{' + cpp_string(entry["id"]) + ',\n' + cpp_string(data) + '},\n'
         header += "};\n}\n"
         imports["platforms/windows/native/src/workbench/official_plugin_catalog.generated.hpp"] = header.encode()
+    if (source / "UPSTREAM.json").is_file():
+        input_names.add("UPSTREAM.json")
     inputs = {name: digest(safe_path(source, name).read_bytes()) for name in sorted(input_names)}
-    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True, encoding="utf-8").strip()
+    snapshot_path = source / "UPSTREAM.json"
+    revision = (json.loads(snapshot_path.read_bytes())["revision"] if snapshot_path.is_file() else
+                subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True, encoding="utf-8").strip())
     if update_lock:
+        if snapshot_path.is_file():
+            raise ValueError("Review and update the snapshot hash manifest explicitly; --update-lock requires a plugin Git checkout")
         dirty = subprocess.check_output(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=no"], text=True, encoding="utf-8")
         if dirty:
             raise ValueError("Commit reviewed changes in the plugin repository before updating its source lock")

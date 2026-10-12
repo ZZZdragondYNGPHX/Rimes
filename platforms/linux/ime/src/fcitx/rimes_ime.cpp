@@ -82,7 +82,7 @@ RimesIme::RimesIme(Instance* instance)
         EventType::InputContextCapabilityChanged, EventWatcherPhase::Default,
         [this](Event& event) {
             auto& cap = static_cast<CapabilityChangedEvent&>(event);
-            const bool password = cap.newFlags().test(CapabilityFlag::Password);
+            const bool password = cap.newFlags().testAny(CapabilityFlag::PasswordOrSensitive);
             if (buffer_) {
                 buffer_->OnPasswordField(cap.inputContext(), password);
             }

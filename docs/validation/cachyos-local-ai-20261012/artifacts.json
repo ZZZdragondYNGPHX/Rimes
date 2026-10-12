@@ -1,0 +1,12 @@
+[
+  {
+    "path": "platforms/linux/ime/dist/fcitx5-rimes-0.3.0-1-x86_64.pkg.tar.zst",
+    "bytes": 20061457,
+    "sha256": "565971e4abb9f4dfcd8bb5bdc0b37e62529b94ce660d1d15392b6ea48e939112"
+  },
+  {
+    "path": "platforms/linux/ime/dist/rimes-local-model-qwen3-0.6b-q4km-cpu-x86_64.tar.zst",
+    "bytes": 395299317,
+    "sha256": "a43ddce247670211c10c4ba6428754e2c290d7b47184934395e108992f0107d4"
+  }
+]

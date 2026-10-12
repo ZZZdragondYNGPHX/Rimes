@@ -1,0 +1,15 @@
+RIMES Official Plugins
+Copyright 2026 scholay
+
+Core maintainer / 核心维护者: 学术海
+Maintainer homepage: https://pm.scholay.com
+Plugin repository: https://github.com/scholay/rimes-plugins
+Host project: https://github.com/scholay/rimes
+
+This repository is maintained for official free plugins for RIMES.
+RIMES provides Chinese text input using the Rime Input Method Engine (librime).
+Rime / librime: https://github.com/rime/librime
+
+The Rime reference identifies the host platform's input engine. Individual
+plugins have their own component dependencies and attribution records.
+See THIRD_PARTY_NOTICES.md and individual plugin documentation.

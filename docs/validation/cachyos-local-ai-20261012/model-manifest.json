@@ -1,0 +1,48 @@
+{
+  "model": "Qwen3-0.6B",
+  "quantization": "Q4_K_M",
+  "model_license": "Apache-2.0",
+  "source_model": "https://huggingface.co/Qwen/Qwen3-0.6B",
+  "quantized_source": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF",
+  "quantized_revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "runtime": "llama.cpp llama-server",
+  "runtime_ref": "v0.6.0",
+  "runtime_commit": "d81235049384534c167caea52b85a694f6103d14",
+  "runtime_license": "MIT",
+  "runtime_reported_version": "0.6.0-dev (build 1, commit d812350)",
+  "build_flags": [
+    "Release",
+    "BUILD_SHARED_LIBS=OFF",
+    "GGML_BACKEND_DL=OFF",
+    "GGML_CUDA=OFF",
+    "GGML_VULKAN=OFF",
+    "GGML_NATIVE=ON",
+    "LLAMA_CURL=OFF",
+    "LLAMA_OPENSSL=OFF",
+    "LLAMA_BUILD_TESTS=OFF"
+  ],
+  "target_cpu": "Intel i7-11800H, CachyOS x86_64, CPU only",
+  "default_threads": 4,
+  "context_size": 1024,
+  "max_tokens": 96,
+  "thinking": false,
+  "files": {
+    "Qwen3-0.6B-Q4_K_M.gguf": {
+      "bytes": 396705472,
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+    },
+    "runtime/llama-server": {
+      "bytes": 20038456,
+      "sha256": "46fb15ce2d786d51f929efa684f9009acf99bb918920dd58c158c5d5cea6341e"
+    },
+    "runtime/LICENSE": {
+      "bytes": 1078,
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+    },
+    "LICENSE.Qwen3": {
+      "bytes": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    }
+  },
+  "payload_bytes": 416756349
+}

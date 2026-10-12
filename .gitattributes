@@ -1,5 +1,5 @@
 # Cross-platform preview assets are byte-for-byte reconciled between Windows,
-# Linux, and macOS runners. Keep every packaged source file on LF regardless
+# Linux runners. Keep every packaged source file on LF regardless
 # of a contributor's core.autocrlf setting.
 /rime-data/** text eol=lf
 /platforms/windows/** text eol=lf
@@ -11,11 +11,9 @@
 /README.en.md text eol=lf
 /Catalog/buffer-plugins.json text eol=lf
 /Catalog/Plugins/**/manifest.json text eol=lf
-/Sources/RimeBuffer/PresetBufferPluginCatalog.generated.swift text eol=lf
 /RELEASE.md text eol=lf
 /CROSS-PLATFORM-PREVIEW.md text eol=lf
 /.github/workflows/platform-preview.yml text eol=lf
-/.github/workflows/platform-preview-release.yml text eol=lf
 
 # Brand assets must retain their bytes even beneath the platform text rules.
 *.png binary

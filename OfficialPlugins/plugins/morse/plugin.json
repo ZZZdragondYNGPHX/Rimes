@@ -1,0 +1,36 @@
+{
+  "id": "builtin.morse",
+  "nameZH": "摩斯电码",
+  "nameEN": "Morse Code",
+  "summaryZH": "用空格键拍发摩斯电码：短按为点、长按为划，停顿即成字母，带侧音与解码提示音；上方显示映射槽、待组合槽与走纸线，下方输出英文。",
+  "summaryEN": "Morse Code official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "0.1.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.morse",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "buffer.write",
+    "audio.play"
+  ],
+  "contribution": {
+    "type": "morse.v1",
+    "options": {
+      "alphabet": "international",
+      "key": "space"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

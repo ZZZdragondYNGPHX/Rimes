@@ -192,7 +192,20 @@ std::string EncodeSnapshot(const Snapshot& snapshot) {
         AppendEscaped(out, OriginTag(block.origin));
         out << ",\"created_at_ms\":" << block.created_at_ms << '}';
     }
-    out << "]}";
+    out << "],\"ai_mode\":"; AppendEscaped(out, snapshot.ai_mode);
+    out << ",\"ai_status\":"; AppendEscaped(out, snapshot.ai_status);
+    out << ",\"ai_result\":"; AppendEscaped(out, snapshot.secure ? "" : snapshot.ai_result);
+    out << ",\"ai_result_id\":"; AppendEscaped(out, snapshot.ai_result_id);
+    out << ",\"suggestion_text\":"; AppendEscaped(out, snapshot.secure ? "" : snapshot.suggestion_text);
+    out << ",\"suggestion_kind\":"; AppendEscaped(out, snapshot.suggestion_kind);
+    out << ",\"suggestion_id\":"; AppendEscaped(out, snapshot.suggestion_id);
+    out << ",\"accept_key\":"; AppendEscaped(out, snapshot.accept_key);
+    out << ",\"model_status\":"; AppendEscaped(out, snapshot.model_status);
+    out << ",\"suggestion_ready\":" << (snapshot.suggestion_ready && !snapshot.secure ? "true" : "false");
+    out << ",\"source_can_send\":" << (snapshot.source_can_send && !snapshot.secure ? "true" : "false");
+    out << ",\"ai_busy\":" << (snapshot.ai_busy ? "true" : "false");
+    out << ",\"ai_can_copy\":" << (snapshot.ai_can_copy && !snapshot.secure ? "true" : "false");
+    out << ",\"ai_can_send\":" << (snapshot.ai_can_send && !snapshot.secure ? "true" : "false") << '}';
     return out.str();
 }
 
@@ -212,13 +225,29 @@ bool ParseCommand(std::string_view json, Command* command, std::string* error) {
     }
     *command = Command{};
     const std::string op = ReadString(json, "op");
+    command->result_id = ReadString(json, "result_id");
     if (op.empty()) {
         if (error != nullptr) {
             *error = "missing op";
         }
         return false;
     }
-    if (op == "hello" || op == "status") {
+    if (op == "ai_mode") {
+        command->op = CommandOp::AiMode;
+        command->text = ReadString(json, "mode");
+    } else if (op == "ai_generate") {
+        command->op = CommandOp::AiGenerate;
+    } else if (op == "ai_cancel") {
+        command->op = CommandOp::AiCancel;
+    } else if (op == "ai_reload") {
+        command->op = CommandOp::AiReload;
+    } else if (op == "ai_copy") {
+        command->op = CommandOp::AiCopy;
+    } else if (op == "ai_accept") {
+        command->op = CommandOp::AiAccept;
+    } else if (op == "ai_send") {
+        command->op = CommandOp::AiSend;
+    } else if (op == "hello" || op == "status") {
         command->op = op == "hello" ? CommandOp::Hello : CommandOp::Query;
     } else if (op == "toggle") {
         command->op = CommandOp::Toggle;

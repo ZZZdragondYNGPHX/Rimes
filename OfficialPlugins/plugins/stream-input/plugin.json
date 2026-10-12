@@ -1,0 +1,35 @@
+{
+  "id": "builtin.stream-input",
+  "nameZH": "意识流输入",
+  "nameEN": "Stream of Consciousness Input",
+  "summaryZH": "连续输入全拼，由本地 Rime + Octagram 模块低延迟解码，复杂输入再回退到独立 AI 渠道，并给出 1–5 个完整候选。",
+  "summaryEN": "Stream of Consciousness Input official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.4.0",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.stream-input",
+      "distribution": "bundled"
+    }
+  },
+  "capabilities": [
+    "buffer.read",
+    "ai.generate"
+  ],
+  "contribution": {
+    "type": "stream.pinyin.v1",
+    "options": {
+      "maxCandidates": "5"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

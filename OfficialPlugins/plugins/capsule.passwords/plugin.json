@@ -1,0 +1,37 @@
+{
+  "id": "builtin.capsule.passwords",
+  "nameZH": "密码",
+  "nameEN": "Passwords",
+  "summaryZH": "密码官方插件；用户数据由 RIMES 宿主管理。",
+  "summaryEN": "Passwords official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "1.1.0",
+  "kind": "capsule",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.capsule.passwords",
+      "distribution": "bundled"
+    }
+  },
+  "capabilities": [
+    "capsule.navigate"
+  ],
+  "contribution": {
+    "type": "host.module.v1",
+    "options": {
+      "host": "capsule",
+      "module": "passwords",
+      "filters": "all,login,key,other",
+      "actions": "open,search"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

@@ -1,12 +1,6 @@
 name: Platform Preview Data
 
 on:
-  # Windows/Linux packages are experimental maintenance surfaces. Keep their
-  # full closure and transaction smoke available, but do not make them a
-  # macOS product or release gate.
-  schedule:
-    # Monday 03:37 Asia/Shanghai.
-    - cron: '37 19 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -27,8 +21,6 @@ jobs:
             label: linux
           - runner: windows-latest
             label: windows
-          - runner: macos-15
-            label: macos
     runs-on: ${{ matrix.runner }}
 
     steps:

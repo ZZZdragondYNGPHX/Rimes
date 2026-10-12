@@ -1,12 +1,6 @@
 name: Android checks
 
 on:
-  pull_request:
-    branches: [main]
-    paths: ['OfficialPlugins', 'plugins.lock.json', 'scripts/prepare-official-plugins.py', 'LICENSE', 'Shared/Tests/RimesCoreTests/Fixtures/punctuation-layout.tsv', 'platforms/android/**', 'platforms/ios/dependencies.lock.json', 'platforms/ios/Resources/EngineData/**', 'platforms/ios/Licenses/**', '.github/workflows/android.yml']
-  push:
-    branches: [main]
-    paths: ['OfficialPlugins', 'plugins.lock.json', 'scripts/prepare-official-plugins.py', 'LICENSE', 'Shared/Tests/RimesCoreTests/Fixtures/punctuation-layout.tsv', 'platforms/android/**', 'platforms/ios/dependencies.lock.json', 'platforms/ios/Resources/EngineData/**', 'platforms/ios/Licenses/**', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:

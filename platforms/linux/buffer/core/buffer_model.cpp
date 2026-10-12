@@ -214,6 +214,37 @@ void BufferModel::discard_for_privacy() {
     }
 }
 
+bool BufferModel::replace_range(const std::vector<Block>& expected, int insertion,
+                                std::size_t begin, std::size_t end, std::string_view replacement) {
+    if (secure_ || password_field_ || !capture_enabled_ || !preedit_.empty() || all_content_selected_ || insertion!=insertion_index_ || expected.size()!=blocks_.size() || begin>end) return false;
+    for(std::size_t i=0;i<expected.size();++i) if(expected[i].id!=blocks_[i].id || expected[i].text!=blocks_[i].text) return false;
+    const auto staged=staged_text();
+    auto boundary=[&](std::size_t at) { return at<=staged.size() && (at==staged.size() || (static_cast<unsigned char>(staged[at])&0xc0)!=0x80); };
+    if(!boundary(begin) || !boundary(end) || replacement.size()>kMaxBlockBytes) return false;
+    auto updated=blocks_;
+    std::size_t offset=0, first=0;
+    while(first<updated.size() && offset+updated[first].text.size()<=begin) { offset+=updated[first].text.size(); ++first; }
+    if(begin==end && begin==offset) {
+        if(updated.size()>=kMaxBlocks || replacement.empty()) return false;
+        Block block; block.id=NewBlockId(); block.text=std::string(replacement); block.origin=Origin::Local; block.created_at_ms=UnixTimeMs();
+        updated.insert(updated.begin()+first,std::move(block));
+        insertion_index_=static_cast<int>(first)+1;
+    } else {
+        if(first>=updated.size()) return false;
+        std::size_t last=first, last_offset=offset;
+        while(last+1<updated.size() && last_offset+updated[last].text.size()<end) { last_offset+=updated[last].text.size(); ++last; }
+        const auto merged=updated[first].text.substr(0,begin-offset)+std::string(replacement)+updated[last].text.substr(end-last_offset);
+        if(merged.size()>kMaxBlockBytes) return false;
+        const auto removed=last-first+1;
+        updated.erase(updated.begin()+first,updated.begin()+last+1);
+        if(!merged.empty()) { Block block; block.id=NewBlockId(); block.text=merged; block.origin=Origin::Local; block.created_at_ms=UnixTimeMs(); updated.insert(updated.begin()+first,std::move(block)); }
+        const int added=merged.empty() ? 0 : 1;
+        if(insertion_index_>=static_cast<int>(last)+1) insertion_index_+=added-static_cast<int>(removed);
+        else if(insertion_index_>static_cast<int>(first)) insertion_index_=static_cast<int>(first)+added;
+    }
+    blocks_=std::move(updated); finish_direct_run(); ClampInsertion(); Notify(); return true;
+}
+
 bool BufferModel::append(std::string_view text, Origin origin) {
     if (text.empty() || text.size() > kMaxBlockBytes) {
         return false;

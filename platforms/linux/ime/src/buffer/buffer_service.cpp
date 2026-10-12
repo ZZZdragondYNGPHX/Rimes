@@ -99,6 +99,7 @@ std::string FindUiBinary() {
         }
     }
     const char* candidates[] = {
+        RIMES_BUFFER_UI_PATH,
         "/usr/libexec/rimes/rimes-buffer",
         "/usr/lib/rimes/rimes-buffer",
         "/usr/bin/rimes-buffer",
@@ -146,6 +147,8 @@ BufferService::BufferService(Instance* instance, PostFn post)
 }
 
 BufferService::~BufferService() {
+    ai_alive_->store(false);
+    CancelAi();
     CancelHoldTimer();
     CancelFocusGraceTimer();
     CancelDragHardTimer();
@@ -202,7 +205,7 @@ bool BufferService::IsPrintableAscii(const KeyEvent& event, char* out) {
 InputContext* BufferService::LiveTarget() const {
     InputContext* found = nullptr;
     instance_->inputContextManager().foreachFocused([&](InputContext* ic) {
-        if (model_.captures(TokenFor(ic))) {
+        if (model_.captures(TokenFor(ic)) && !ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive)) {
             found = ic;
             return false;
         }
@@ -267,7 +270,7 @@ bool BufferService::OnCommit(InputContext* ic, std::string_view text) {
     if (ic == nullptr || text.empty()) {
         return false;
     }
-    if (ic->capabilityFlags().test(CapabilityFlag::Password) || model_.secure() ||
+    if (ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) || model_.secure() ||
         model_.password_field()) {
         return false;
     }
@@ -293,6 +296,18 @@ bool BufferService::HandleEarlyKey(KeyEvent& event, bool composing) {
     if (ic == nullptr) {
         return false;
     }
+    const auto physical=event.rawKey().code() ? Key(FcitxKey_None,KeyStates{},event.rawKey().code()) : Key(event.rawKey().sym());
+    if(accept_latch_.isValid()) {
+        if(accept_latch_target_!=TokenFor(ic) || !ic->hasFocus() || ai_.mode()!=rimes::ai::Mode::Generate || !model_.captures(TokenFor(ic)) || model_.secure() || model_.password_field() || ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive)) { accept_latch_=Key(); accept_latch_target_.clear(); }
+        else if(physical==accept_latch_) {
+            if(event.isRelease()) { accept_latch_=Key(); accept_latch_target_.clear(); }
+            event.filterAndAccept(); return true;
+        }
+    }
+    const bool repeat=event.rawKey().states().test(KeyState::Repeat);
+    if(!event.isRelease() && !repeat && !composing && ai_.mode()==rimes::ai::Mode::Generate && !ai_config_.accept_key.empty() && event.key().normalize().check(Key(ai_config_.accept_key).normalize()) && !ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) && AcceptSuggestion()) {
+        accept_latch_=physical; accept_latch_target_=TokenFor(ic); event.filterAndAccept(); return true;
+    }
     if (IsToggleHotkey(event)) {
         Toggle(ic);
         event.filterAndAccept();
@@ -311,7 +326,7 @@ bool BufferService::HandleEarlyKey(KeyEvent& event, bool composing) {
         return true;
     }
 
-    const bool password = ic->capabilityFlags().test(CapabilityFlag::Password);
+    const bool password = ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive);
     OnPasswordField(ic, password);
     if (password || model_.secure()) {
         return false;
@@ -440,7 +455,7 @@ void BufferService::OnActivate(InputContext* ic) {
         if (dragging_) {
             ConsumeDragBlip();
             RefreshCaret(ic);
-            OnPasswordField(ic, ic->capabilityFlags().test(CapabilityFlag::Password));
+            OnPasswordField(ic, ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive));
             Publish();
             return;
         }
@@ -449,14 +464,16 @@ void BufferService::OnActivate(InputContext* ic) {
     if (model_.capture_enabled() && !model_.captures(token)) {
         DropCaptureForSwitch("focus-changed");
     }
-    OnPasswordField(ic, ic->capabilityFlags().test(CapabilityFlag::Password));
-    if (auto_capture_ && !ic->capabilityFlags().test(CapabilityFlag::Password)) {
+    OnPasswordField(ic, ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive));
+    if (auto_capture_ && !ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive)) {
         ShowAndCapture(ic);
     }
     Publish();
 }
 
 void BufferService::OnDeactivate(InputContext* ic, bool switching_im) {
+    accept_latch_=Key(); accept_latch_target_.clear();
+    CancelAi();
     FCITX_LOGC(rimes_buffer_log, Info)
         << "deactivate switch_im=" << switching_im << " capturing=" << model_.capture_enabled()
         << " drag=" << dragging_;
@@ -469,6 +486,7 @@ void BufferService::OnDeactivate(InputContext* ic, bool switching_im) {
         return;
     }
     if (dragging_) {
+        Publish();
         return;
     }
     // Do not drop capture yet. A toolbar drag or a brief WM grab will
@@ -544,7 +562,7 @@ void BufferService::ShowAndCapture(InputContext* ic) {
         Publish();
         return;
     }
-    if (ic->capabilityFlags().test(CapabilityFlag::Password)) {
+    if (ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive)) {
         return;
     }
     RefreshCaret(ic);
@@ -653,12 +671,13 @@ void BufferService::ApplyReturnAction(rimes::buffer::ReturnGesture::Action actio
 }
 
 bool BufferService::Deliver(bool all) {
+    if (ai_.mode() == rimes::ai::Mode::Translate || (ai_.mode()==rimes::ai::Mode::Generate && manual_ai_)) return DeliverAi(all);
     auto* ic = LiveTarget();
     if (ic == nullptr) {
         FCITX_LOGC(rimes_buffer_log, Info) << "delivery rejected: no live target";
         return false;
     }
-    if (ic->capabilityFlags().test(CapabilityFlag::Password) || model_.secure() ||
+    if (ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) || model_.secure() ||
         model_.password_field()) {
         return false;
     }
@@ -697,6 +716,49 @@ void BufferService::HandleCommand(const rimes::buffer::Command& command) {
         });
     }
     switch (command.op) {
+        case rimes::buffer::CommandOp::AiMode: {
+            rimes::ai::Mode mode;
+            if (rimes::ai::ParseMode(command.text, &mode)) {
+                CancelAi();
+                ai_.SetMode(mode);
+                manual_ai_=false;
+                ai_paused_ = false;
+                ai_notice_.clear();
+                ReloadAiConfig();
+            }
+            break;
+        }
+        case rimes::buffer::CommandOp::AiAccept:
+            if(command.result_id==std::to_string(suggestion_.revision)) AcceptSuggestion();
+            break;
+        case rimes::buffer::CommandOp::AiGenerate:
+            manual_ai_=ai_.mode()==rimes::ai::Mode::Generate;
+            ai_paused_ = false;
+            StartAi(true);
+            break;
+        case rimes::buffer::CommandOp::AiCancel:
+            CancelAi();
+            ai_paused_ = true;
+            ai_notice_ = "已暂停；点击生成或翻译可继续";
+            break;
+        case rimes::buffer::CommandOp::AiReload:
+            CancelAi();
+            ai_paused_=false; ai_notice_.clear();
+            ReloadAiConfig();
+            manual_ai_=false;
+            ai_.Reset();
+            WriteAll(R"({"v":1,"type":"ai_reloaded"})");
+            break;
+        case rimes::buffer::CommandOp::AiSend:
+            if (!ai_.units().empty() && command.result_id == std::to_string(ai_.units().front().id)) DeliverAi(false);
+            break;
+        case rimes::buffer::CommandOp::AiCopy: {
+            ai_.Sync(model_.blocks());
+            const auto text = ai_.ReadyText();
+            if (!model_.secure() && !model_.password_field() && !text.empty() && !ai_.units().empty() && command.result_id == std::to_string(ai_.units().front().id))
+                WriteAll("{\"v\":1,\"type\":\"copy_result\",\"text\":"+rimes::buffer::JsonEscape(text)+"}");
+            break;
+        }
         case rimes::buffer::CommandOp::Hello:
         case rimes::buffer::CommandOp::Query:
             break;
@@ -1023,10 +1085,12 @@ void BufferService::WriteAll(const std::string& payload) {
 }
 
 void BufferService::Publish() {
+    SyncAi();
     if (model_.visible()) {
         EnsureUi();
     }
     auto snapshot = rimes::buffer::MakeSnapshot(model_);
+    AddAiSnapshot(&snapshot);
     snapshot.ui_clients = UiClientCount();
     const auto json = rimes::buffer::EncodeSnapshot(snapshot);
     WriteAll(json);
@@ -1042,6 +1106,180 @@ void BufferService::Publish() {
     std::fputc('\n', file);
     std::fclose(file);
     std::rename(tmp.c_str(), dump_path_.c_str());
+}
+
+void BufferService::CancelAi() {
+    ++ai_epoch_;
+    suggestion_.Invalidate();
+    ai_preview_.clear();
+    ai_worker_.Cancel();
+    ai_.CancelWorking();
+    ai_active_id_ = 0;
+    ai_timer_id_ = 0;
+    ai_timer_.reset();
+}
+
+void BufferService::ReloadAiConfig() {
+    ai_worker_.SetModelActive(ai_config_,false);
+    std::string error;
+    if(!rimes::ai::LoadConfig(rimes::ai::ConfigPath(),&ai_config_,&error)) { ai_paused_=true; ai_notice_=error; }
+}
+void BufferService::SyncAi() {
+    const bool valid=model_.visible() && LiveTarget() && pending_unfocus_token_.empty() && !model_.secure() && !model_.password_field();
+    const bool advanced=valid && ai_.mode()!=rimes::ai::Mode::Default && !ai_paused_;
+    ai_worker_.SetModelActive(ai_config_,advanced);
+    if(advanced && ai_config_.channel==rimes::ai::Channel::ManagedLocal) {
+        if(!model_status_timer_) model_status_timer_=instance_->eventLoop().addTimeEvent(CLOCK_MONOTONIC,now(CLOCK_MONOTONIC)+100000,1000,
+            [this](EventSourceTime* source,uint64_t) {
+                const auto status=ai_worker_.ModelStatus();
+                if(status!=model_status_seen_) { model_status_seen_=status; Publish(); }
+                source->setTime(now(CLOCK_MONOTONIC)+200000); source->setOneShot(); return true;
+            });
+    } else model_status_timer_.reset();
+    if(!valid) { if(ai_target_valid_) { CancelAi(); ai_.Reset(); manual_ai_=false; } ai_target_valid_=false; return; }
+    ai_target_valid_=true;
+    if(ai_.mode()==rimes::ai::Mode::Default) return;
+    const auto old_units=ai_.units().empty() ? 0 : ai_.units().front().id;
+    ai_.Sync(model_.blocks());
+    if(manual_ai_ && old_units && (ai_.units().empty() || ai_.units().front().id!=old_units)) manual_ai_=false;
+    if(suggestion_.Sync(model_,model_.capture_token())) {
+        CancelAi(); suggestion_.Sync(model_,model_.capture_token());
+    }
+    if(ai_active_id_ && !ai_.Find(ai_active_id_)) CancelAi();
+    if(!model_.preedit().empty()) { if(ai_active_id_ || suggestion_.working || ai_timer_) CancelAi(); return; }
+    if(ai_paused_ || ai_active_id_ || suggestion_.working || model_.all_content_selected()) return;
+    if(ai_.mode()==rimes::ai::Mode::Generate) {
+        if(manual_ai_ || suggestion_.attempted || suggestion_.context.empty()) return;
+        if(ai_timer_ && ai_timer_id_==suggestion_.revision) return;
+        ai_timer_id_=suggestion_.revision;
+        const int delay=rimes::ai::SentenceEnd(suggestion_.context) ? 0 : ai_config_.debounce_ms;
+        ai_timer_=instance_->eventLoop().addTimeEvent(CLOCK_MONOTONIC,now(CLOCK_MONOTONIC)+delay*1000,1000,
+            [this](EventSourceTime*,uint64_t) { ai_timer_id_=0; StartSuggestion(); Publish(); return true; });
+    } else {
+        const auto* pending=ai_.NextPending();
+        if(!pending) { ai_timer_.reset(); ai_timer_id_=0; return; }
+        if(ai_timer_ && ai_timer_id_==pending->id) return;
+        ai_timer_id_=pending->id;
+        const int delay=rimes::ai::SentenceEnd(pending->text) ? 0 : ai_config_.debounce_ms;
+        ai_timer_=instance_->eventLoop().addTimeEvent(CLOCK_MONOTONIC,now(CLOCK_MONOTONIC)+delay*1000,1000,
+            [this](EventSourceTime*,uint64_t) { ai_timer_id_=0; StartAi(); Publish(); return true; });
+    }
+}
+void BufferService::StartSuggestion() {
+    ai_timer_.reset(); ai_timer_id_=0;
+    if(ai_.mode()!=rimes::ai::Mode::Generate || manual_ai_ || ai_paused_ || !LiveTarget() || !model_.visible() || !model_.preedit().empty() || model_.all_content_selected() || model_.secure() || model_.password_field() || !pending_unfocus_token_.empty()) return;
+    suggestion_.Sync(model_,model_.capture_token());
+    if(suggestion_.context.empty()) return;
+    suggestion_.working=true; suggestion_.attempted=true;
+    const auto epoch=++ai_epoch_, revision=suggestion_.revision;
+    const auto token=model_.capture_token();
+    auto valid=[this,alive=ai_alive_,epoch,revision,token] { return alive->load() && epoch==ai_epoch_ && revision==suggestion_.revision && LiveTarget() && pending_unfocus_token_.empty() && model_.captures(token) && !model_.secure() && !model_.password_field() && model_.preedit().empty() && suggestion_.Matches(model_,token); };
+    ai_worker_.Submit(ai_config_,suggestion_.context,rimes::ai::Purpose::Suggest,
+        [this,post=post_,valid,revision](rimes::ai::Reply reply) mutable { post([this,valid,revision,reply=std::move(reply)]() mutable {
+            if(!valid()) return;
+            suggestion_.working=false; suggestion_.preview.clear();
+            if(!reply.cancelled) { if(reply.error.empty()) suggestion_.Finish(revision,reply.text); else suggestion_.error=std::move(reply.error); }
+            Publish();
+        }); },
+        [this,post=post_,valid,context=suggestion_.context](std::string content) mutable { auto preview=rimes::ai::SuggestionPreview(content,context); if(preview.empty()) return; post([this,valid,preview=std::move(preview)] { if(valid()) { suggestion_.preview=preview; Publish(); } }); });
+}
+bool BufferService::AcceptSuggestion() {
+    auto* ic=LiveTarget();
+    if(ai_.mode()!=rimes::ai::Mode::Generate || !ic || !model_.visible() || !model_.captures(TokenFor(ic)) || !pending_unfocus_token_.empty() || model_.secure() || model_.password_field() || ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) || !model_.preedit().empty() || !suggestion_.complete || suggestion_.working || !suggestion_.Matches(model_,model_.capture_token())) return false;
+    if(!model_.replace_range(suggestion_.source,suggestion_.insertion,suggestion_.begin,suggestion_.end,suggestion_.text)) return false;
+    CancelAi(); ai_.Reset(); manual_ai_=false; Publish(); return true;
+}
+
+void BufferService::StartAi(bool retry) {
+    if (ai_.mode() == rimes::ai::Mode::Default) return;
+    if (!LiveTarget() || !model_.visible() || model_.secure() || model_.password_field() || !pending_unfocus_token_.empty()) { ai_notice_="请先在目标输入框按 Ctrl+Shift+B 连接 Buffer"; return; }
+    if (!model_.preedit().empty()) { ai_notice_="请先完成当前组字"; return; }
+    ai_.Sync(model_.blocks());
+    if (retry) {
+        CancelAi();
+        if (ai_.mode() == rimes::ai::Mode::Generate) { ai_.Reset(); ai_.Sync(model_.blocks()); }
+        ai_.Retry();
+    }
+    ai_worker_.SetModelActive(ai_config_,true);
+    if (ai_active_id_) return;
+    const auto* pending=ai_.NextPending();
+    if (!pending) { if(ai_.units().empty()) ai_notice_="先输入或导入需要处理的文字"; return; }
+    const auto id=pending->id;
+    rimes::ai::Config config=ai_config_;
+    std::string error;
+    if (!rimes::ai::ValidateConfig(config, &error)) {
+        ai_.Find(id)->state=rimes::ai::State::Working;
+        ai_.Complete(id,{},error);
+        ai_notice_.clear();
+        return;
+    }
+    ai_timer_.reset(); ai_timer_id_=0;
+    ai_notice_.clear();
+    ai_.Find(id)->state=rimes::ai::State::Working;
+    ai_active_id_=id;
+    const auto epoch=++ai_epoch_;
+    const auto token=model_.capture_token();
+    const bool translation=ai_.mode()==rimes::ai::Mode::Translate;
+    ai_worker_.Submit(std::move(config),pending->text,translation,
+        [this, alive=ai_alive_, post=post_, epoch,id,token](rimes::ai::Reply reply) mutable {
+            post([this,alive,epoch,id,token,reply=std::move(reply)]() mutable {
+                if (!alive->load() || epoch!=ai_epoch_) return;
+                ai_active_id_=0;
+                ai_.Sync(model_.blocks());
+                if (!reply.cancelled && LiveTarget() && pending_unfocus_token_.empty() && model_.captures(token) && !model_.secure() && !model_.password_field())
+                    ai_.Complete(id,std::move(reply.text),std::move(reply.error));
+                else ai_.CancelWorking();
+                Publish();
+            });
+        });
+}
+
+bool BufferService::DeliverAi(bool all) {
+    ai_.Sync(model_.blocks());
+    auto* ic=LiveTarget();
+    if (!ic || !model_.visible() || model_.secure() || model_.password_field() || ic->capabilityFlags().testAny(CapabilityFlag::PasswordOrSensitive) || !model_.preedit().empty() || !pending_unfocus_token_.empty()) return false;
+    const auto token=model_.capture_token();
+    bool delivered=false;
+    while (!ai_.units().empty()) {
+        const auto unit=ai_.units().front();
+        if (unit.state!=rimes::ai::State::Ready || unit.result.empty() || !model_.captures(token) || LiveTarget()!=ic) break;
+        std::vector<std::string> ids;
+        for (const auto& source : unit.source) ids.push_back(source.id);
+        ic->commitString(unit.result);
+        ai_.Consume(unit.id);
+        model_.consume_delivered(ids);
+        delivered=true;
+        if (!all) break;
+    }
+    if (delivered && model_.empty() && model_.close_after_last()) CloseAndPause();
+    else Publish();
+    return delivered;
+}
+
+void BufferService::AddAiSnapshot(rimes::buffer::Snapshot* snapshot) {
+    snapshot->ai_mode=rimes::ai::ModeTag(ai_.mode());
+    if (snapshot->secure || ai_.mode()==rimes::ai::Mode::Default) return;
+    snapshot->ai_busy=ai_active_id_!=0 || suggestion_.working;
+    snapshot->model_status=ai_worker_.ModelStatus();
+    snapshot->source_can_send=ai_.mode()!=rimes::ai::Mode::Translate && !manual_ai_ && snapshot->capturing && !model_.empty();
+    if(ai_.mode()==rimes::ai::Mode::Generate && !manual_ai_) {
+        snapshot->suggestion_id=std::to_string(suggestion_.revision);
+        snapshot->suggestion_kind=suggestion_.complete ? suggestion_.kind : "preview";
+        snapshot->suggestion_text=suggestion_.complete ? suggestion_.kind=="correction" ? model_.staged_text().substr(suggestion_.begin,suggestion_.end-suggestion_.begin)+" → "+(suggestion_.text.empty() ? "（删除）" : suggestion_.text) : suggestion_.text : suggestion_.preview;
+        snapshot->suggestion_ready=suggestion_.complete && suggestion_.Matches(model_,model_.capture_token()) && model_.preedit().empty() && LiveTarget() && pending_unfocus_token_.empty();
+        snapshot->accept_key=ai_config_.accept_key;
+    }
+    snapshot->ai_status=ai_notice_;
+    if (!ai_.units().empty()) {
+        snapshot->ai_result_id=std::to_string(ai_.units().front().id);
+        for (const auto& unit : ai_.units()) {
+            if (unit.state==rimes::ai::State::Ready) snapshot->ai_result+=unit.result;
+            if (unit.state==rimes::ai::State::Error && snapshot->ai_status.empty()) snapshot->ai_status=unit.error;
+        }
+        snapshot->ai_can_send=ai_.units().front().state==rimes::ai::State::Ready && snapshot->capturing && LiveTarget() && pending_unfocus_token_.empty() && model_.preedit().empty();
+        snapshot->ai_can_copy=!ai_.ReadyText().empty();
+    }
+    if (snapshot->ai_status.empty()) snapshot->ai_status=snapshot->ai_busy ? "正在处理，可取消" : ai_.mode()==rimes::ai::Mode::Translate ? "按原文单元翻译；译文需手动发送" : suggestion_.error.empty() ? "边写边建议；可另行主动生成" : suggestion_.error;
 }
 
 void BufferService::ArmHoldTimer() {

@@ -1,4 +1,0 @@
-{
-  "en-US": "1.1.2 (51): Imported full-Pinyin schemes can switch between 26-key and 9-key when the package includes a compatible native T9 schema. Test with the new Wanxiang full-Pinyin 26-key + 9-key ZIP: import and deploy Wanxiang, enable it, then select 9-key Full Pinyin in keyboard layouts. Verify spelling selection, backspace, candidate commit, Buffer, and switching back to 26 keys. Existing scheme settings, learned data and chord layout are preserved. Packages without a compatible T9 encoder keep their own layout. TestFlight update does not replace the imported ZIP automatically.",
-  "zh-Hans": "1.1.2（51）：支持带原生九键编码的导入全拼方案切换 26 键／9 键。请使用新版万象全拼 26键＋9键 ZIP，导入、部署并启用万象后，在键位布局选择「9键·全拼」。重点测试选拼音、删除、候选上屏、Buffer 和切回 26 键。原有方案设置、学习数据和并击布局保留；不带兼容九键编码的方案仍使用自身布局。更新 TestFlight 不会自动替换已导入的方案包。"
-}

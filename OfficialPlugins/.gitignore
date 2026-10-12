@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+build/
+dist/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.keystore

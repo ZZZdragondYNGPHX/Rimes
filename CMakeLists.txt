@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(RIMES VERSION 1.1.1 LANGUAGES C CXX)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "The primary RIMES target is Linux (CachyOS / KDE Plasma).")
+endif()
+include(CTest)
+add_subdirectory(platforms/linux/ime)

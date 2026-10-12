@@ -38,9 +38,13 @@ Mailbox is still later. Buffer and Capsule behavior are specified in
 
 macOS-only behaviour that is **not** reproduced here: custom candidate chrome,
 Mailbox, Capsule clipboard history / iCloud / password vault / media kinds,
-Buffer plugins (AI / translation / stream / music), cross-batch chord pairing,
+Stream/music plugins, cross-batch chord pairing,
 IMK `Delivery.insert`. See [`../buffer/SPEC.md`](../buffer/SPEC.md) and
 [`../capsule/SPEC.md`](../capsule/SPEC.md) for the explicit gap lists.
+
+## AI generation and live translation
+
+Linux 0.3.0 defaults to a shared, lazily loaded CPU model. Ordinary mode uses Rime only. AI offers one correction/continuation with conditional Tab or a custom shortcut; translation keeps source units. Cloud use requires explicit selection, with no fallback. Compatible local/cloud Chat Completions APIs remain available. Open the Buffer toolbar settings or `rimes-buffer --settings`. See [AI.md](../buffer/AI.md) for configuration, cancellation, source retirement and validation boundaries. Advanced results use the same Fcitx5 delivery path; there is no automatic sending.
 
 ## Maintenance limits
 
@@ -63,23 +67,23 @@ release. See the timing matrix in [`../buffer/MANUAL-TEST.md`](../buffer/MANUAL-
 ## Dependencies
 
 See `scripts/deps.sh --print` for Debian/Ubuntu, Arch, and Fedora package
-lists. On Ubuntu 24.04:
+lists. On CachyOS / Arch:
 
 ```bash
 platforms/linux/ime/scripts/deps.sh --install
 ```
 
-`librime-plugin-lua` and a distro OpenCC `opencc/s2t.json` are required. The
+Lua support (included in current Arch/CachyOS `librime`, separately packaged as `librime-plugin-lua` on Debian) and a distro OpenCC `opencc/s2t.json` are required. The
 addon will not bundle those.
 
 ## Build and install
 
 ```bash
 platforms/linux/ime/scripts/build.sh
-platforms/linux/ime/scripts/install.sh          # default prefix: ~/.local
+platforms/linux/ime/scripts/install.sh          # default prefix: /usr; run installation with sudo
 # or
-sudo RIMES_IME_PREFIX=/usr platforms/linux/ime/scripts/install.sh
-fcitx5 -r
+sudo platforms/linux/ime/scripts/install.sh --skip-build
+# KDE Wayland: select Fcitx 5 in System Settings > Virtual Keyboard, then log out/in
 ```
 
 Then add **RIMES** in Fcitx5 configuration. Restart the compositor/session if
@@ -123,7 +127,7 @@ platforms/linux/ime/scripts/run-tests.sh
    seat-less compositor is a documented limitation
 
 GitHub Actions workflow `.github/workflows/linux-ime.yml` runs the same
-sequence on `ubuntu-latest`. It is **not** a macOS merge/release gate.
+sequence in an Arch Linux container. Linux is the primary build target in this fork.
 
 ## IBus follow-up
 

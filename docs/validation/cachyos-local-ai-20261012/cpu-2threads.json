@@ -1,0 +1,78 @@
+{
+  "cold_ready_ms": 759.09393,
+  "context": 1024,
+  "default_no_process": true,
+  "idle_unload_ms": 1056.999534,
+  "idle_unloaded": true,
+  "max_tokens": 96,
+  "model_bytes": 396705472,
+  "retained_in_cache": true,
+  "runtime_bytes": 20038456,
+  "samples": [
+    {
+      "accepted_text": "",
+      "complete_ms": 925.950741,
+      "error": "",
+      "first_content_delta_ms": 681.7217,
+      "first_visible_ms": -1.0,
+      "kind": "",
+      "pause_ms": 0,
+      "response": "{\"text\":\"我今天很开心。\"}",
+      "source": "我今天很开心。",
+      "valid_suggestion": false
+    },
+    {
+      "accepted_text": "",
+      "complete_ms": 263.616724,
+      "error": "",
+      "first_content_delta_ms": 34.563722,
+      "first_visible_ms": -1.0,
+      "kind": "",
+      "pause_ms": 0,
+      "response": "{\"text\":\"我今天很开心。\"}",
+      "source": "我今天很开心。",
+      "valid_suggestion": false
+    },
+    {
+      "accepted_text": "",
+      "complete_ms": 350.743279,
+      "error": "",
+      "first_content_delta_ms": 127.378495,
+      "first_visible_ms": 271.161164,
+      "kind": "correction",
+      "pause_ms": 0,
+      "response": "{\"text\":\"今天天气很好。\"}",
+      "source": "今天天气气很好。",
+      "valid_suggestion": true
+    },
+    {
+      "accepted_text": "",
+      "complete_ms": 332.043661,
+      "error": "",
+      "first_content_delta_ms": 98.970726,
+      "first_visible_ms": -1.0,
+      "kind": "",
+      "pause_ms": 0,
+      "response": "{\"text\":\"我明天去学校。\"}",
+      "source": "我明天去学校。",
+      "valid_suggestion": false
+    },
+    {
+      "accepted_text": " school.",
+      "complete_ms": 459.108156,
+      "error": "",
+      "first_content_delta_ms": 93.500631,
+      "first_visible_ms": 337.653686,
+      "kind": "continuation",
+      "pause_ms": 250,
+      "response": "{\"text\": \"I am going to the school.\"}",
+      "source": "I am going to the",
+      "valid_suggestion": true
+    }
+  ],
+  "server_peak_rss_kib": 821480,
+  "shared_pid": true,
+  "threads": 2,
+  "translation": "I will go to school tomorrow.",
+  "translation_error": ""
+}

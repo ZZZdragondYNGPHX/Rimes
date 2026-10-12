@@ -19,6 +19,10 @@
 #include "buffer_model.hpp"
 #include "buffer_protocol.hpp"
 #include "buffer_return.hpp"
+#include "ai_workspace.hpp"
+#include "ai_provider.hpp"
+#include "ai_suggestion.hpp"
+#include <fcitx-utils/key.h>
 
 namespace fcitx {
 
@@ -98,6 +102,14 @@ private:
     void ArmHoldTimer();
     void CancelHoldTimer();
     bool HasUiClients();
+    void SyncAi();
+    void CancelAi();
+    void StartAi(bool retry = false);
+    bool DeliverAi(bool all);
+    void StartSuggestion();
+    bool AcceptSuggestion();
+    void ReloadAiConfig();
+    void AddAiSnapshot(rimes::buffer::Snapshot* snapshot);
 
     Instance* instance_;
     PostFn post_;
@@ -125,6 +137,24 @@ private:
     bool auto_capture_ = false;
     bool headless_ = false;
     bool eat_return_until_release_ = false;
+    rimes::ai::Config ai_config_;
+    rimes::ai::Suggestion suggestion_;
+    bool manual_ai_ = false;
+    bool ai_target_valid_ = false;
+    std::string ai_preview_;
+    Key accept_latch_;
+    std::string accept_latch_target_;
+    rimes::ai::Workspace ai_;
+    rimes::ai::Worker ai_worker_;
+    std::shared_ptr<std::atomic<bool>> ai_alive_ = std::make_shared<std::atomic<bool>>(true);
+    std::unique_ptr<EventSourceTime> ai_timer_;
+    std::unique_ptr<EventSourceTime> model_status_timer_;
+    std::string model_status_seen_;
+    std::uint64_t ai_epoch_ = 0;
+    std::uint64_t ai_active_id_ = 0;
+    std::uint64_t ai_timer_id_ = 0;
+    bool ai_paused_ = false;
+    std::string ai_notice_;
 };
 
 }  // namespace fcitx

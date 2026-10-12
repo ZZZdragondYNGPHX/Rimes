@@ -23,6 +23,13 @@ enum class CommandOp {
     SetInsertion,
     DragBegin,
     DragEnd,
+    AiMode,
+    AiGenerate,
+    AiCancel,
+    AiReload,
+    AiCopy,
+    AiSend,
+    AiAccept,
     Unknown,
 };
 
@@ -30,6 +37,7 @@ struct Command {
     CommandOp op = CommandOp::Unknown;
     std::string text;
     int insertion_index = -1;
+    std::string result_id;
 };
 
 struct Snapshot {
@@ -50,6 +58,16 @@ struct Snapshot {
     CaretRect caret;
     std::vector<Block> blocks;
     int ui_clients = 0;
+    std::string ai_mode = "default";
+    std::string ai_status;
+    std::string ai_result;
+    std::string ai_result_id;
+    std::string suggestion_text, suggestion_kind, suggestion_id, accept_key, model_status;
+    bool suggestion_ready = false;
+    bool source_can_send = false;
+    bool ai_busy = false;
+    bool ai_can_copy = false;
+    bool ai_can_send = false;
 };
 
 Snapshot MakeSnapshot(const BufferModel& model);

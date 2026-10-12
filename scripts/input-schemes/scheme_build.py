@@ -1183,217 +1183,36 @@ def command_build(arguments: argparse.Namespace) -> int:
     return 0
 
 
-HARNESS_PACKAGE = """// swift-tools-version:5.9
-import PackageDescription
-let package = Package(
-    name: "importer-harness",
-    platforms: [.macOS(.v13)],
-    dependencies: [
-        .package(url: "https://github.com/jpsim/Yams.git", exact: "5.1.3"),
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", exact: "0.9.19"),
-    ],
-    targets: [
-        .executableTarget(name: "importer-harness", dependencies: [
-            .product(name: "Yams", package: "Yams"),
-            .product(name: "ZIPFoundation", package: "ZIPFoundation"),
-        ]),
-    ]
-)
-"""
-IMPORTER_SOURCE = REPO_ROOT / "platforms" / "ios" / "App" / "RimeSchemeImportService.swift"
-ENGINE_HOST = REPO_ROOT / "Vendor" / "ios-build" / "host" / "rime"
-ENGINE_HEADERS = REPO_ROOT / "Vendor" / "ios-build" / "librime" / "src"
-
-
 def run(command: list[str], **options) -> subprocess.CompletedProcess:
     return subprocess.run(command, capture_output=True, text=True, **options)
 
 
-def importer_source(reference: str | None) -> bytes:
-    """The importer as checked out, or as committed at a git reference."""
-    if not reference:
-        return IMPORTER_SOURCE.read_bytes()
-    shown = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "show", f"{reference}:{IMPORTER_SOURCE.relative_to(REPO_ROOT).as_posix()}"],
-        capture_output=True,
-    )
-    if shown.returncode:
-        raise BuildError(f"cannot read the importer at {reference}: {shown.stderr.decode(errors='replace').strip()}")
-    return shown.stdout
-
-
-def importer_harness(output: Path, source: bytes) -> Path:
-    """Compile the unmodified iOS importer source into a host command."""
-    package = output / f"importer-harness-{sha256(source)[:12]}"
-    sources = package / "Sources" / "importer-harness"
-    sources.mkdir(parents=True, exist_ok=True)
-    wanted = {
-        package / "Package.swift": HARNESS_PACKAGE.encode(),
-        sources / "RimeSchemeImportService.swift": source,
-        sources / "main.swift": Path(__file__).with_name("importer_harness.swift").read_bytes(),
-    }
-    binary = package / ".build" / "release" / "importer-harness"
-    stale = not binary.exists()
-    for path, data in wanted.items():
-        if not path.exists() or path.read_bytes() != data:
-            path.write_bytes(data)
-            stale = True
-    if stale:
-        built = run(["swift", "build", "-c", "release", "--package-path", str(package)])
-        if built.returncode:
-            raise BuildError("importer harness does not build:\n" + (built.stdout + built.stderr)[-2000:])
-    return binary
-
-
-def host_probe(output: Path) -> Path:
-    """Compile host_probe.cc against the host slice of the iOS engine."""
-    library = ENGINE_HOST / "lib"
-    if not (library / "librime.dylib").exists() and not (library / "librime.so").exists():
-        raise BuildError("the iOS engine host slice is missing; run platforms/ios/scripts/build-engine.py host")
-    source = Path(__file__).with_name("host_probe.cc")
-    binary = output / "bin" / "host_probe"
-    if not binary.exists() or binary.stat().st_mtime < source.stat().st_mtime:
-        binary.parent.mkdir(parents=True, exist_ok=True)
-        built = run([
-            "c++", "-std=c++17", "-O1", f"-I{ENGINE_HEADERS}", f"-I{ENGINE_HOST / 'src'}", f"-L{library}",
-            "-lrime", f"-Wl,-rpath,{library}", "-o", str(binary), str(source),
-        ])
-        if built.returncode:
-            raise BuildError("host probe does not build:\n" + built.stderr[-2000:])
-    return binary
-
-
-def json_lines(text: str) -> list[dict]:
-    rows = []
-    for line in text.splitlines():
-        try:
-            rows.append(json.loads(line))
-        except ValueError:
-            pass
-    return rows
-
-
-def verify_one(result: dict, entry: dict, harness: Path, probe: Path | None, output: Path, timeout: int) -> dict:
-    archive = output / "packages" / result["archive"]
-    stage_root = Path(tempfile.mkdtemp(dir=output, prefix="stage-"))
-    verification: dict = {}
-    try:
-        inspected = run([str(harness), "--stage", str(stage_root), str(archive)], timeout=600)
-        rows = json_lines(inspected.stdout)
-        if not rows:
-            return {"importer": {"fatal": "harness produced no result: " + inspected.stderr[-300:]}, "passed": False}
-        review = rows[0]
-        staged = review.pop("staged", None)
-        review.pop("archive", None)
-        verification["importer"] = review
-        blocked = [scheme["id"] for scheme in review.get("schemes", []) if scheme["blocking"]]
-        passed = not review.get("fatal") and "stageError" not in review and not (set(result["recommended"]) & set(blocked))
-        if staged and probe is not None:
-            started = time.monotonic()
-            timer = ["/usr/bin/time", "-l"] if sys.platform == "darwin" else []
-            try:
-                deployed = run(timer + [str(probe), staged["root"], "deploy", *staged["deployment"]], timeout=timeout)
-                steps = json_lines(deployed.stdout)
-                peak = re.search(r"(\d+)\s+maximum resident set size", deployed.stderr)
-                size = sum(path.stat().st_size for path in Path(staged["root"]).rglob("*") if path.is_file())
-                failures = [step["target"] for step in steps if not step.get("ok") or step.get("compiled") is False]
-                if deployed.returncode and not failures:
-                    failures = [f"engine exited with status {deployed.returncode}"]
-                verification["deploy"] = {
-                    "schemes": staged["deployment"], "failures": failures,
-                    "seconds": round(time.monotonic() - started, 1),
-                    "peakMemoryMB": int(peak.group(1)) >> 20 if peak else None,
-                    "deployedMB": size >> 20,
-                    "withinDeployedLimit": size <= lint.MAX_DEPLOYED_BYTES,
-                }
-                passed = passed and not failures and size <= lint.MAX_DEPLOYED_BYTES
-                if not failures:
-                    loaded = run([str(probe), staged["root"], "load", *staged["selected"]], timeout=timeout)
-                    steps = json_lines(loaded.stdout)
-                    bad = [{"scheme": step["target"], "luaError": re.sub(r"\S*?/lua/", "lua/", step.get("luaError", ""))}
-                           for step in steps if not step.get("ok")]
-                    if loaded.returncode and not bad:
-                        bad = [{"scheme": "*", "luaError": f"engine exited with status {loaded.returncode}"}]
-                    verification["load"] = {"schemes": staged["selected"], "failures": bad}
-                    passed = passed and not bad
-                    probes = []
-                    for case in entry.get("probes", []):
-                        if case["schema"] not in staged["selected"]:
-                            continue
-                        response = run([str(probe), staged["root"], "type", case["schema"], case["keys"], *case.get("options", [])], timeout=timeout)
-                        typed = json_lines(response.stdout)
-                        row = typed[0] if typed else {}
-                        seen = row.get("candidates", []) + ([row["commit"]] if row.get("commit") else [])
-                        hit = bool(response.returncode == 0 and row.get("ok") and not row.get("luaError") and any(case["expect"] in text for text in seen))
-                        probes.append({**case, "passed": hit, "candidates": row.get("candidates", [])[:5], "luaError": row.get("luaError", "")})
-                        passed = passed and hit
-                    if probes:
-                        verification["probes"] = probes
-            except subprocess.TimeoutExpired:
-                verification["deploy"] = {"failures": [f"timed out after {timeout} s"]}
-                passed = False
-        elif probe is None:
-            verification["deploy"] = None
-        verification["passed"] = passed
-        return verification
-    finally:
-        shutil.rmtree(stage_root, ignore_errors=True)
-
-
 def command_verify(arguments: argparse.Namespace) -> int:
-    sources = load_sources()
+    """Recheck archives locally with the platform-neutral Python contract.
+
+    This checks package data only. Native Linux typing is verified separately
+    by the Fcitx5/librime smoke, not by the retired Apple importer harness.
+    """
     output = arguments.output.resolve()
-    source = importer_source(arguments.importer_ref)
-    harness = importer_harness(output, source)
-    probe = None
-    try:
-        probe = host_probe(output)
-    except BuildError as error:
-        print(f"note: engine probe skipped — {error}")
-    jobs = []
-    for entry in selected_entries(sources, arguments.only):
+    failed = 0
+    for entry in selected_entries(load_sources(), arguments.only):
         path = output / "reports" / f"{entry['id']}.json"
-        if not path.exists():
+        if not path.is_file():
             continue
         result = json.loads(path.read_text(encoding="utf-8"))
         if arguments.missing and "verification" in result:
             continue
-        if "archive" in result and (output / "packages" / result["archive"]).exists():
-            jobs.append((entry, result, path))
-
-    def work(job):
-        entry, result, path = job
-        try:
-            result["verification"] = verify_one(result, entry, harness, probe, output, arguments.timeout)
-        except Exception as error:
-            result["verification"] = {"passed": False, "error": f"{type(error).__name__}: {error}"}
-        result["verification"]["importerSHA256"] = sha256(source)
+        archive_name = result.get("archive")
+        if not archive_name:
+            continue
+        report = lint.inspect_archive(output / "packages" / archive_name)
+        passed = not report.fatal and set(result["recommended"]).issubset(report.importable)
+        result["verification"] = {"kind": "python-data-contract", "passed": passed,
+                                  "data": report.as_dict(), "deploy": None}
         path.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        return result
-
-    with ThreadPoolExecutor(arguments.jobs) as pool:
-        results = list(pool.map(work, jobs))
-    passed = sum(1 for result in results if result["verification"].get("passed"))
-    for result in results:
-        verification = result["verification"]
-        if not verification.get("passed") or arguments.verbose:
-            importer = verification.get("importer") or {}
-            reason = (
-                verification.get("error") or importer.get("fatal") or importer.get("stageError")
-                or "; ".join((verification.get("deploy") or {}).get("failures", []))
-                or "; ".join(f"{bad['scheme']}: {bad['luaError']}" for bad in (verification.get("load") or {}).get("failures", []))
-                or "; ".join(f"{case['schema']} {case['keys']}≠{case['expect']}" for case in verification.get("probes", []) if not case["passed"])
-                or "blocked schemes"
-            )
-            if verification.get("passed"):
-                deploy = verification.get("deploy") or {}
-                reason = f"deploy {deploy.get('seconds')} s, peak {deploy.get('peakMemoryMB')} MB, deployed {deploy.get('deployedMB')} MB"
-            print(f"{'pass' if verification.get('passed') else 'FAIL':5} {result['id']:36} {str(reason)[:160]}")
-    print(f"verified {passed}/{len(results)}")
-    drift = [result["id"] for result in results if not verdicts_agree(result)]
-    if drift:
-        print("scheme_lint.py and the importer disagree; the importer is right, correct the lint: " + ", ".join(drift))
-    return 0
+        failed += not passed
+        print(f"{'pass' if passed else 'FAIL'} {entry['id']}: data contract (native typing not checked)")
+    return 1 if failed else 0
 
 
 def verdicts_agree(result: dict) -> bool:
@@ -1452,7 +1271,7 @@ def summarize(entry: dict, result: dict | None) -> dict:
         )
     if status == "ready" and verification is not None:
         if verification.get("passed"):
-            status = "verified" if verification.get("deploy") else "importer-ok"
+            status = "lint-ok" if verification.get("kind") == "python-data-contract" else ("verified" if verification.get("deploy") else "importer-ok")
         else:
             importer = verification.get("importer") or {}
             status = "import-fails"
@@ -1500,7 +1319,7 @@ def summarize(entry: dict, result: dict | None) -> dict:
             "deploySeconds": deploy.get("seconds"), "peakMemoryMB": deploy.get("peakMemoryMB"),
             "deployedMB": deploy.get("deployedMB"),
             # Mac figures, graded against the one package known to deploy on an iPhone 15 Pro
-            # (13 s and 1.2 GB on an M4; platforms/ios/validation/rime-schemes-20261002.md).
+            # Historical memory/deployment limits remain part of the data contract.
             "deviceRisk": "high" if seconds >= 60 or peak >= 2048 else ("medium" if seconds >= 10 or peak >= 1024 else "low"),
             "probes": [{"schema": case["schema"], "keys": case["keys"], "expect": case["expect"], "passed": case["passed"],
                         **({"options": case["options"]} if case.get("options") else {})}
@@ -1638,12 +1457,11 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--jobs", type=int, default=4)
     build.add_argument("--verbose", action="store_true")
     build.set_defaults(run=command_build)
-    verify = commands.add_parser("verify", help="run the real importer and the iOS engine host slice over built packages")
+    verify = commands.add_parser("verify", help="verify built archives with the platform-neutral data contract")
     verify.add_argument("--only", nargs="+", metavar="ID")
     verify.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     verify.add_argument("--jobs", type=int, default=3)
     verify.add_argument("--timeout", type=int, default=600, help="seconds allowed for one engine step")
-    verify.add_argument("--importer-ref", metavar="REF", help="take the importer from this git reference instead of the working tree")
     verify.add_argument("--missing", action="store_true", help="only packages whose current content is not verified yet")
     verify.add_argument("--verbose", action="store_true")
     verify.set_defaults(run=command_verify)

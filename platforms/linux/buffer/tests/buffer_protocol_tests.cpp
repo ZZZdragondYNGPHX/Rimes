@@ -37,9 +37,15 @@ int main() {
     Expect(json.find("\"capturing\":true") != std::string::npos, "capturing flag");
 
     model.set_password_field(true);
-    const auto shielded = rimes::buffer::EncodeSnapshot(rimes::buffer::MakeSnapshot(model));
+    auto protected_snapshot = rimes::buffer::MakeSnapshot(model);
+    protected_snapshot.ai_result = "private generated output";
+    protected_snapshot.ai_can_copy = true;
+    protected_snapshot.ai_can_send = true;
+    const auto shielded = rimes::buffer::EncodeSnapshot(protected_snapshot);
     Expect(shielded.find("你好") == std::string::npos, "password field scrubs plaintext");
     Expect(shielded.find("\"secure\":true") != std::string::npos, "secure flag");
+    Expect(shielded.find("private generated output") == std::string::npos, "protected snapshot scrubs AI output");
+    Expect(shielded.find("\"ai_can_copy\":false") != std::string::npos, "protected snapshot disables result copy");
 
     std::string frame;
     Expect(rimes::buffer::EncodeFrame(json, &frame), "frame encodes");

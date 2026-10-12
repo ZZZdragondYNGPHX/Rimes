@@ -1,4 +1,4 @@
-"""Contract tests for scheme_lint, following platforms/ios/Tests/RimeSchemeImportTests.swift case by case."""
+"""Contract tests for scheme_lint, preserving the platform-neutral upstream package contract."""
 
 import io
 import json

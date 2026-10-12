@@ -1,0 +1,35 @@
+{
+  "id": "builtin.music",
+  "nameZH": "电音演奏",
+  "nameEN": "Electronic Music",
+  "summaryZH": "用 AudioKit 演奏四弦贝斯排列的 40 键电音，搭配真实采样架子鼓、八种加花和两轨 Loop；演奏键仅在音乐面板获焦时生效。",
+  "summaryEN": "Electronic Music official plugin; user data remains owned by the RIMES host.",
+  "schemaVersion": 2,
+  "version": "0.2.3",
+  "kind": "buffer",
+  "sdkVersion": 1,
+  "minimumHostVersion": "1.1.0",
+  "runtime": "host-interpreted",
+  "platforms": {
+    "macos": {
+      "legacyID": "builtin.music",
+      "distribution": "download"
+    }
+  },
+  "capabilities": [
+    "audio.play"
+  ],
+  "contribution": {
+    "type": "music.keyboard.v1",
+    "options": {
+      "layout": "four-string-bass",
+      "tracks": "2"
+    }
+  },
+  "license": "Apache-2.0",
+  "maintainer": {
+    "name": "学术海",
+    "url": "https://pm.scholay.com"
+  },
+  "notice": "Copyright 2026 scholay. RIMES official plugin. Native imports retain LICENSES/MIT-legacy.txt where applicable."
+}

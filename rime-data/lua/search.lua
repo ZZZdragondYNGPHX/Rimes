@@ -3,6 +3,8 @@
 -- Copyright (C) [Mirtle](https://github.com/mirtlecn)
 -- License: CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/)
 -- 使用说明：<https://github.com/mirtlecn/rime-radical-pinyin/blob/master/search.lua.md>
+-- RIMES Linux fork: Lua 5.5 makes numeric-for variables read-only;
+-- the numeric loop already advances i after each iteration.
 -- 处理 lua 中的特殊字符用于匹配
 local function alt_lua_punc( s )
     if s then
@@ -21,7 +23,6 @@ local function get_pos( text, char )
             local first_char = tmp:sub( 1, utf8.offset( tmp, 2 ) - 1 )
             if first_char == char then pos[i] = true end
             tmp = tmp:gsub( '^' .. first_char, '' )
-            i = i + 1
         end
     end
     return pos

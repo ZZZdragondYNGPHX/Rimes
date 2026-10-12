@@ -1,3 +1,7 @@
+每阶段及任务完成时，只在本地执行最小相关验证。
+
+开发仓库在 `/home/henry/Projects/Rimes`；`/home/henry/Software` 是个人软件目录。开发、Git 提交和远端推送均从开发目录执行，不在个人软件目录新建开发检出。
+
 # Repository instructions for coding agents
 
 ## Contribution attribution

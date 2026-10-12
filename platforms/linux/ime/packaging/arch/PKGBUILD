@@ -1,0 +1,35 @@
+# Local CachyOS/Arch package for the reviewed Linux fork.
+pkgname=fcitx5-rimes
+pkgver=0.3.0
+pkgrel=1
+pkgdesc='RIMES Fcitx5 input method with Buffer, local AI suggestions, translation and Markdown Capsule'
+arch=('x86_64')
+url='https://github.com/scholay/rimes'
+license=('Apache-2.0' 'GPL-3.0-only' 'LGPL-3.0-only' 'CC-BY-SA-4.0')
+depends=('fcitx5' 'librime' 'opencc' 'curl' 'jsoncpp' 'gtk3' 'gtk-layer-shell' 'wl-clipboard')
+makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'pkgconf' 'gettext' 'python')
+optdepends=('fcitx5-configtool: configure input methods'
+            'fcitx5-gtk: GTK application input'
+            'fcitx5-qt: Qt application input')
+source=('rimes-source.tar.gz')
+# Locally generated source archive, never downloaded from an unverified URL.
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "$srcdir/rimes/platforms/linux/ime" -B "$srcdir/build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR=lib -DRIMES_BUILD_TESTS=OFF
+    cmake --build "$srcdir/build" -j"${RIMES_BUILD_JOBS:-$(nproc)}"
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+    python3 "$srcdir/rimes/scripts/platform-preview/preview.py" stage \
+        --repo-root "$srcdir/rimes" --output-dir "$pkgdir/usr/share/rimes/data"
+    install -Dm644 "$srcdir/rimes/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 "$srcdir/rimes/NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
+    install -Dm644 "$srcdir/rimes/THIRD_PARTY_NOTICES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+    cp -a "$srcdir/rimes/LICENSES" "$pkgdir/usr/share/licenses/$pkgname/"
+    install -Dm644 "$srcdir/rimes/platforms/linux/buffer/AI.md" "$pkgdir/usr/share/doc/$pkgname/AI.md"
+    install -Dm644 "$srcdir/rimes/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

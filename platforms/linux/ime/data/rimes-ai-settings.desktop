@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RIMES AI & Translation
+Name[zh_CN]=RIMES AI 与翻译设置
+Comment=Configure AI generation and live translation
+Exec=rimes-buffer --settings
+Icon=rimes
+Terminal=false
+Categories=Settings;Utility;
